@@ -1,1 +1,238 @@
-{}
+{
+  "products": {
+    "works": [
+      {
+        "id": "afterglow",
+        "name": "Afterglow",
+        "category": "Evening",
+        "image": "assets/img-2.jpg",
+        "tagline": "A little midnight magic.",
+        "recipient": "the woman who owns the room.",
+        "description": "An emerald lace silhouette with thoughtful details for the moments that deserve a little extra sparkle.",
+        "relatedAccessories": [
+          "aso-oke-clutch",
+          "cowrie-necklace",
+          "beaded-headwrap"
+        ]
+      },
+      {
+        "id": "aster",
+        "name": "Aster",
+        "category": "Celebration",
+        "image": "assets/admin-upload-mwx1va7o-xampu0.jpg",
+        "images": [
+          "assets/admin-upload-mwx1va7o-xampu0.jpg",
+          "assets/admin-upload-mwx1vbwv-io21ga.jpg"
+        ],
+        "tagline": "The joy is in the details.",
+        "description": "A playful, sculpted look made for dancing, celebrating, and feeling completely yourself.",
+        "recipient": "her next beautiful beginning.",
+        "relatedAccessories": [
+          "ankara-scrunchies",
+          "beaded-headwrap",
+          "cowrie-necklace"
+        ]
+      },
+      {
+        "id": "solenne",
+        "name": "Solenne",
+        "category": "Occasion",
+        "image": "assets/img-1.jpg",
+        "images": [
+          "assets/img-1.jpg",
+          "assets/img-1iu.jpg"
+        ],
+        "tagline": "Colour with a point of view.",
+        "recipient": "the woman who brings the colour.",
+        "description": "A bold print and a beautifully considered shape, designed to turn an entrance into a moment.",
+        "relatedAccessories": [
+          "adire-tote",
+          "ankara-scrunchies",
+          "aso-oke-clutch"
+        ]
+      },
+      {
+        "id": "celeste",
+        "name": "Celeste",
+        "category": "Celebration",
+        "image": "assets/img-3.jpg",
+        "tagline": "Softness, with a little fire.",
+        "recipient": "the one celebrating herself.",
+        "description": "Romantic lace and a confident silhouette, balanced with the details that make it yours.",
+        "relatedAccessories": [
+          "beaded-headwrap",
+          "cowrie-necklace",
+          "aso-oke-clutch"
+        ]
+      },
+      {
+        "id": "sunday-light",
+        "name": "Sunday Light",
+        "category": "Occasion",
+        "image": "assets/img-1iu.jpg",
+        "images": [
+          "assets/img-1iu.jpg",
+          "assets/img-1.jpg"
+        ],
+        "tagline": "A reason to make a memory.",
+        "recipient": "a day she’ll talk about forever.",
+        "description": "A made-to-measure occasion look with a graceful line and room for your own signature.",
+        "relatedAccessories": [
+          "cowrie-necklace",
+          "ankara-scrunchies",
+          "adire-tote"
+        ]
+      },
+      {
+        "id": "the-gathering",
+        "name": "The Gathering",
+        "category": "Evening",
+        "image": "assets/img-2.jpg",
+        "tagline": "Made for all the right reasons.",
+        "recipient": "the woman bringing everyone together.",
+        "description": "A statement-making evening piece, imagined around your occasion, your palette, and your point of view.",
+        "relatedAccessories": [
+          "aso-oke-clutch",
+          "adire-tote",
+          "beaded-headwrap"
+        ]
+      }
+    ],
+    "accessories": [
+      {
+        "id": "aso-oke-clutch",
+        "name": "Aso Oke Clutch",
+        "category": "Bags",
+        "type": "clutch",
+        "price": 18000,
+        "tagline": "A little heirloom in the making.",
+        "images": [
+          "assets/img-1.jpg",
+          "assets/img-1iu.jpg",
+          "assets/img-2.jpg"
+        ],
+        "image": "assets/img-1.jpg"
+      },
+      {
+        "id": "beaded-headwrap",
+        "name": "Beaded Headwrap",
+        "category": "Hair",
+        "type": "headwrap",
+        "price": 9500,
+        "tagline": "A sparkle for your everyday.",
+        "images": [
+          "assets/img-1iu.jpg",
+          "assets/img-2.jpg",
+          "assets/img-3.jpg"
+        ],
+        "image": "assets/img-1iu.jpg"
+      },
+      {
+        "id": "adire-tote",
+        "name": "Adire Tote",
+        "category": "Bags",
+        "type": "tote",
+        "price": 16500,
+        "tagline": "Carry a little colour with you.",
+        "images": [
+          "assets/img-2.jpg",
+          "assets/img-3.jpg",
+          "assets/img-1.jpg"
+        ],
+        "image": "assets/img-2.jpg"
+      },
+      {
+        "id": "cowrie-necklace",
+        "name": "Cowrie Statement Necklace",
+        "category": "Jewellery",
+        "type": "necklace",
+        "price": 12000,
+        "tagline": "A keepsake with a story.",
+        "images": [
+          "assets/img-3.jpg",
+          "assets/img-1.jpg",
+          "assets/img-1iu.jpg"
+        ],
+        "image": "assets/img-3.jpg"
+      },
+      {
+        "id": "ankara-scrunchies",
+        "name": "Ankara Scrunchie Set",
+        "category": "Hair",
+        "type": "scrunchie",
+        "price": 6500,
+        "tagline": "Small joy, tied up in a bow.",
+        "images": [
+          "assets/img-1.jpg",
+          "assets/img-1iu.jpg",
+          "assets/img-2.jpg"
+        ],
+        "image": "assets/img-1.jpg"
+      }
+    ]
+  },
+  "story": {
+    "copy": {
+      "heroEyebrow": "OUR STORY · BUKOLA CRYSTAL ATELIER",
+      "heroTitle": "The woman is the beginning.",
+      "heroTitleAccent": "The story is the design.",
+      "heroIntro": "Every look starts with a person, a moment and the feeling she wants to carry with her.",
+      "ribbon": "HER STORY ✦ YOUR MOMENT ✦ MADE WITH CARE ✦ A LITTLE SPARKLE ✦ HER STORY ✦ YOUR MOMENT ✦ MADE WITH CARE ✦ A LITTLE SPARKLE ✦",
+      "chapterOneEyebrow": "HOW IT BEGINS",
+      "chapterOneHeading": "First, we listen to",
+      "chapterOneAccent": "your story.",
+      "chapterOneParagraphOne": "A celebration, a new beginning, or a day you simply want to feel like yourself—what matters to you is where the design starts.",
+      "chapterOneParagraphTwo": "We talk through the occasion, the details you love and how you want to feel. From there, your idea begins to take shape as a custom look made around you.",
+      "chapterOneImageNote": "A moment\nmade hers.",
+      "chapterOneLink": "Bring us your idea",
+      "chapterTwoEyebrow": "THE CRAFT",
+      "chapterTwoHeading": "From the first idea",
+      "chapterTwoAccent": "to the final fitting.",
+      "chapterTwoParagraphOne": "We bring your inspiration into the design process, shaping the silhouette, colour and details around the person who will wear it.",
+      "chapterTwoParagraphTwo": "Each fitting gives us a chance to refine the feel and finish, so your custom piece feels considered, comfortable and unmistakably yours.",
+      "chapterTwoImageNote": "Thought through.\nMade with care.",
+      "chapterTwoLink": "Plan a fitting",
+      "chapterThreeEyebrow": "THE FINISHING TOUCH",
+      "chapterThreeHeading": "Details that feel",
+      "chapterThreeAccent": "like you.",
+      "chapterThreeParagraphOne": "The right finishing touch can bring the whole look together. Explore thoughtful accessories, or tell us what would make your outfit feel complete.",
+      "chapterThreeParagraphTwo": "Whether you have a clear picture in mind or are still finding the words for it, there is room to make something personal.",
+      "chapterThreeImageNote": "The little things\nmake it yours.",
+      "chapterThreeLink": "Explore accessories",
+      "valueOneTitle": "Designed around you",
+      "valueOneText": "Your occasion, your point of view.",
+      "valueTwoTitle": "Made with care",
+      "valueTwoText": "Thoughtful details at every fitting.",
+      "valueThreeTitle": "Finished with feeling",
+      "valueThreeText": "A look that stays with you.",
+      "journeyEyebrow": "A CUSTOM LOOK, STEP BY STEP",
+      "journeyHeading": "From your first thought",
+      "journeyAccent": "to your moment.",
+      "stepOneTitle": "Share the idea",
+      "stepOneText": "Tell us what you are celebrating and what you have in mind.",
+      "stepTwoTitle": "Shape the design",
+      "stepTwoText": "We talk through the silhouette, details and direction together.",
+      "stepThreeTitle": "Make it yours",
+      "stepThreeText": "At your fitting, we refine the look around you.",
+      "stepFourTitle": "Step into the moment",
+      "stepFourText": "Your finished look is ready for the story ahead.",
+      "closingEyebrow": "WHEN YOU’RE READY",
+      "closingHeading": "Your story belongs",
+      "closingAccent": "in the details.",
+      "closingIntro": "Start with a fitting or tell us what you would love to create.",
+      "closingFittingLink": "Book a fitting",
+      "closingDesignLink": "Start a custom design"
+    },
+    "images": {
+      "chapterOneImage": "assets/img-2.jpg",
+      "chapterTwoImage": "assets/img-1iu.jpg",
+      "chapterThreeImage": "assets/img-3.jpg"
+    },
+    "alts": {
+      "chapterOneAlt": "An occasion look created for a memorable moment",
+      "chapterTwoAlt": "A colourful custom outfit with carefully finished details",
+      "chapterThreeAlt": "A softly detailed occasionwear look from the atelier"
+    }
+  },
+  "captions": {}
+}
