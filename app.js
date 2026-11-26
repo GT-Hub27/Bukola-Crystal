@@ -132,6 +132,7 @@
       "X-GitHub-Api-Version": "2022-11-28"
     };
     var options = { method: method, headers: headers };
+    if (method === "GET") options.cache = "no-store";
     if (body) {
       headers["Content-Type"] = "application/json";
       options.body = JSON.stringify(body);
