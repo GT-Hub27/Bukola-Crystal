@@ -395,7 +395,10 @@
     }
   }
   function accessoryOrderUrl(item) {
-    return whatsappUrl("Hello " + brand() + ", I’d like to order the " + item.name + " (₦" + Number(item.price || 0).toLocaleString("en-NG") + ").");
+    var discountedPrice = salePrice(item);
+    var currentPrice = discountedPrice === null ? Number(item.price || 0) : discountedPrice;
+    var priceText = formatPrice(currentPrice) + (discountedPrice === null ? "" : " (was " + formatPrice(item.price) + ")");
+    return whatsappUrl("Hello " + brand() + ", I’d like to order the " + item.name + " (" + priceText + ").");
   }
   function saveCustomer(details, source) {
     var customers = read(keys.customers, []);
@@ -476,7 +479,7 @@
   function header() {
     var current = document.body.dataset.page || "";
     var links = [
-      ["index.html", "Home", "home"], ["women.html", "Women", "women"], ["accessories.html", "Accessories", "accessories"],
+      ["index.html", "Home", "home"], ["women.html", "Collection", "women"], ["accessories.html", "Accessories", "accessories"],
       ["design.html", "Custom design", "design"], ["story.html", "Our story", "story"], ["book.html", "Book a fitting", "book"],
       ["account.html", "My inspiration", "account"]
     ];
@@ -500,22 +503,67 @@
     var host = $("#site-footer");
     if (!host) return;
     var instagram = CFG.instagram || "https://www.instagram.com/";
-    host.innerHTML = '<div class="footer-main"><div class="footer-about"><a class="brand" href="index.html" aria-label="' + escapeHtml(brand()) + ' home"><span class="brand-mark">✧</span><span class="brand-name">' + brandTextMarkup(brand().replace(/\s+Atelier$/i, "")) + '<small>Atelier · Lagos</small></span></a><p>One-of-one occasionwear and thoughtful finishing touches, made with feeling.</p></div><div class="footer-column"><b>Find your way</b><a href="women.html">Women · the atelier</a><a href="accessories.html">Accessories</a><a href="design.html">Custom design</a><a href="account.html">My inspiration</a></div><div class="footer-column"><b>Let’s talk</b><a href="book.html">Book a fitting</a><a href="mailto:' + escapeHtml(CFG.email || "hello@example.com") + '">Email the atelier</a><a href="' + escapeHtml(instagram) + '" target="_blank" rel="noopener noreferrer">Instagram ↗</a></div><div class="footer-column"><b>Come say hello</b><span>' + escapeHtml(CFG.studio || "Lagos, Nigeria") + '</span><span>' + escapeHtml(CFG.hours || "Monday–Saturday, 10am–6pm") + '</span><a href="https://wa.me/' + escapeHtml(CFG.whatsapp || "") + '" target="_blank" rel="noopener noreferrer">WhatsApp us ↗</a></div></div><div class="footer-bottom"><span>© ' + new Date().getFullYear() + " " + brandTextMarkup(brand()) + '</span><span>Made with care, and a little sparkle. <a href="admin.html">Studio</a></span></div>';
+    host.innerHTML = '<div class="footer-main"><div class="footer-about"><a class="brand" href="index.html" aria-label="' + escapeHtml(brand()) + ' home"><span class="brand-mark">✧</span><span class="brand-name">' + brandTextMarkup(brand().replace(/\s+Atelier$/i, "")) + '<small>Atelier · Lagos</small></span></a><p>One-of-one occasionwear and thoughtful finishing touches, made with feeling.</p></div><div class="footer-column"><b>Find your way</b><a href="women.html">Collection</a><a href="accessories.html">Accessories</a><a href="design.html">Custom design</a><a href="account.html">My inspiration</a></div><div class="footer-column"><b>Let’s talk</b><a href="book.html">Book a fitting</a><a href="mailto:' + escapeHtml(CFG.email || "hello@example.com") + '">Email the atelier</a><a href="' + escapeHtml(instagram) + '" target="_blank" rel="noopener noreferrer">Instagram ↗</a></div><div class="footer-column"><b>Come say hello</b><span>' + escapeHtml(CFG.studio || "Lagos, Nigeria") + '</span><span>' + escapeHtml(CFG.hours || "Monday–Saturday, 10am–6pm") + '</span><a href="https://wa.me/' + escapeHtml(CFG.whatsapp || "") + '" target="_blank" rel="noopener noreferrer">WhatsApp us ↗</a></div></div><div class="footer-bottom"><span>© ' + new Date().getFullYear() + " " + brandTextMarkup(brand()) + '</span><span>Made with care, and a little sparkle. <a href="admin.html">Studio</a></span></div>';
   }
 
   function accessoryArtwork(item) {
     return '<div class="accessory-artwork art-' + item.type + '"><span class="art-halo"></span><span class="art-object"></span><span class="art-stone"></span><span class="art-copy">' + escapeHtml(item.category) + '</span></div>';
   }
+  function hasProductPrice(item) {
+    return item.price !== null && item.price !== undefined && String(item.price).trim() !== ""
+      && Number.isFinite(Number(item.price)) && Number(item.price) >= 0;
+  }
+  function salePrice(item) {
+    if (!hasProductPrice(item) || item.salePrice === null || item.salePrice === undefined || String(item.salePrice).trim() === "") return null;
+    var regularPrice = Number(item.price);
+    var discountedPrice = Number(item.salePrice);
+    return regularPrice > 0 && Number.isFinite(discountedPrice) && discountedPrice >= 0 && discountedPrice < regularPrice
+      ? discountedPrice
+      : null;
+  }
+  function formatPrice(value) {
+    return "₦" + Number(value).toLocaleString("en-NG");
+  }
+  function productPriceMarkup(item) {
+    var discountedPrice = salePrice(item);
+    if (discountedPrice !== null) {
+      return '<span class="product-sale-price">' + formatPrice(discountedPrice) + '</span> <del class="product-former-price">' + formatPrice(item.price) + '</del>';
+    }
+    return hasProductPrice(item) ? formatPrice(item.price) : '<span class="price-on-request">Price on request</span>';
+  }
+  function productSizes(item) {
+    var values = Array.isArray(item.sizes) ? item.sizes : String(item.sizes || "").split(",");
+    return values.map(function (size) { return String(size).trim(); }).filter(Boolean);
+  }
+  function productStockLabel(item) {
+    if (item.quantity === null || item.quantity === undefined || String(item.quantity).trim() === "") return "";
+    var quantity = Number(item.quantity);
+    if (!Number.isInteger(quantity) || quantity < 0) return "";
+    return quantity === 0 ? "Out of stock" : quantity + " in stock";
+  }
+  function productDetailsMarkup(item, isAccessory) {
+    var details = '<p class="work-for product-price">' + productPriceMarkup(item) + (isAccessory ? ' <b>· Made with care</b>' : "") + '</p>';
+    if (!isAccessory && item.recipient) details += '<p class="work-for"><b>Made for:</b> ' + escapeHtml(caption(item, "recipient")) + '</p>';
+    var sizes = productSizes(item);
+    if (sizes.length) details += '<p class="work-for product-spec"><b>Sizes:</b> ' + escapeHtml(sizes.join(", ")) + '</p>';
+    var stock = productStockLabel(item);
+    if (stock) details += '<p class="work-for product-spec"><b>Availability:</b> ' + escapeHtml(stock) + '</p>';
+    return details;
+  }
   function card(item, isAccessory, badge) {
     var saved = currentInspiration();
     var isSaved = saved.indexOf(item.id) !== -1;
     var picture = isAccessory && !item.image ? accessoryArtwork(item) : '<img src="' + escapeHtml(item.image || "") + '" alt="' + escapeHtml(item.name + (isAccessory ? " accessory" : " custom occasionwear")) + '" loading="lazy">';
-    var price = isAccessory ? '<p class="work-for">₦' + item.price.toLocaleString("en-NG") + ' <b>· Made with care</b></p>' : '<p class="work-for"><b>Made for:</b> ' + escapeHtml(item.recipient) + '</p>';
-    return '<article class="work-card" data-item="' + escapeHtml(item.id) + '" data-accessory="' + (isAccessory ? "true" : "false") + '" tabindex="0" aria-label="View ' + escapeHtml(item.name) + '"><div class="work-image">' + picture + (badge ? '<span class="work-badge">' + escapeHtml(badge) + '</span>' : "") + '<button class="save-inspiration' + (isSaved ? " saved" : "") + '" type="button" data-save="' + escapeHtml(item.id) + '" aria-label="' + (isSaved ? "Remove from" : "Add to") + ' inspiration" aria-pressed="' + isSaved + '">' + (isSaved ? "♥" : "♡") + '</button></div><div class="work-meta"><div class="work-title-row"><h3 class="work-title">' + escapeHtml(item.name) + '</h3><span class="work-category">' + escapeHtml(item.category) + '</span></div><p class="work-tagline">“' + escapeHtml(caption(item, "tagline")) + '”</p>' + (isAccessory ? price : '<p class="work-for"><b>Made for:</b> ' + escapeHtml(caption(item, "recipient")) + '</p>') + '<span class="view-design">' + (isAccessory ? "View & order" : "View this story") + ' ↗</span></div></article>';
+    var sale = salePrice(item) !== null;
+    var promo = item.isNew ? (sale ? "NEW · ON SALE" : "NEW") : (sale ? "ON SALE" : "");
+    return '<article class="work-card" data-item="' + escapeHtml(item.id) + '" data-accessory="' + (isAccessory ? "true" : "false") + '" tabindex="0" aria-label="View ' + escapeHtml(item.name) + '"><div class="work-image">' + picture + (badge ? '<span class="work-badge">' + escapeHtml(badge) + '</span>' : "") + (promo ? '<span class="work-badge work-badge-promo">' + promo + '</span>' : "") + '<button class="save-inspiration' + (isSaved ? " saved" : "") + '" type="button" data-save="' + escapeHtml(item.id) + '" aria-label="' + (isSaved ? "Remove from" : "Add to") + ' inspiration" aria-pressed="' + isSaved + '">' + (isSaved ? "♥" : "♡") + '</button></div><div class="work-meta"><div class="work-title-row"><h3 class="work-title">' + escapeHtml(item.name) + '</h3><span class="work-category">' + escapeHtml(item.category) + '</span></div><p class="work-tagline">“' + escapeHtml(caption(item, "tagline")) + '”</p>' + productDetailsMarkup(item, isAccessory) + '<span class="view-design">' + (isAccessory ? "View & order" : "View this story") + ' ↗</span></div></article>';
   }
   function renderCollection() {
     var featured = $('[data-collection="featured"]');
     if (featured) featured.innerHTML = works.map(function (item) { return card(item, false, "CUSTOM LOOK"); }).join("");
+    var homeDesigns = $('[data-collection="home-designs"]');
+    if (homeDesigns) homeDesigns.innerHTML = works.map(function (item) { return card(item, false, "MADE TO MEASURE"); }).join("");
+    setupFeaturedCarousel();
     var featuredAccessories = $('[data-collection="featured-accessories"]');
     if (featuredAccessories) featuredAccessories.innerHTML = accessories.map(function (item) { return card(item, true, "HAND FINISHED"); }).join("");
     setupAccessoryCarousel();
@@ -553,10 +601,16 @@
     });
   }
   function setupAccessoryCarousel() {
-    var carousel = $(".accessory-carousel");
-    var track = $('[data-collection="featured-accessories"]', carousel || document);
+    setupHorizontalCarousel(".accessory-carousel", '[data-collection="featured-accessories"]', ".accessory-scroll");
+  }
+  function setupFeaturedCarousel() {
+    setupHorizontalCarousel(".featured-carousel", '[data-collection="featured"]', ".featured-scroll");
+  }
+  function setupHorizontalCarousel(carouselSelector, trackSelector, buttonSelector) {
+    var carousel = $(carouselSelector);
+    var track = $(trackSelector, carousel || document);
     if (!carousel || !track) return;
-    $$(".accessory-scroll", carousel).forEach(function (button) {
+    $$(buttonSelector, carousel).forEach(function (button) {
       button.addEventListener("click", function () {
         track.scrollBy({
           left: (button.dataset.direction === "left" ? -1 : 1) * track.clientWidth * 0.8,
@@ -693,6 +747,21 @@
     var action = isAccessory ? "Ask about this piece" : "Make a look like this";
     var recommendations = isAccessory ? [] : accessoryPairings(item);
     root.innerHTML = '<div class="modal-backdrop" role="presentation"><section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="modal-title"><button class="modal-close" type="button" aria-label="Close">×</button><div class="modal-gallery"><div class="modal-image">' + mainImage + '</div>' + thumbnails + '</div><div class="modal-copy"><p class="eyebrow">' + escapeHtml(item.category) + (isAccessory ? " · HAND FINISHED" : " · A CUSTOM LOOK") + '</p><h2 class="work-title" id="modal-title">' + escapeHtml(item.name) + '</h2><p class="work-tagline">“' + escapeHtml(caption(item, "tagline")) + '”</p>' + (isAccessory ? '<p>₦' + Number(item.price || 0).toLocaleString("en-NG") + '</p>' : '<p class="work-for"><b>Made for:</b> ' + escapeHtml(caption(item, "recipient")) + '</p>') + '<p>' + escapeHtml(item.description || "A thoughtful finishing touch, made to bring your look together.") + '</p><a class="button" href="' + (isAccessory ? whatsappUrl("Hello " + brand() + ", " + itemAction) : "design.html?inspiration=" + encodeURIComponent(item.name)) + '" ' + (isAccessory ? 'target="_blank" rel="noopener noreferrer"' : "") + '>' + action + ' <span>↗</span></a><button class="modal-save" id="modal-save" data-item="' + escapeHtml(id) + '" aria-pressed="' + isSaved + '">' + (isSaved ? "♥ Saved to your inspiration" : "♡ Add to your inspiration") + '</button></div>' + (recommendations.length ? '<section class="modal-related"><div class="section-heading"><div><p class="eyebrow">A LOVELY PAIRING</p><h3>Accessories to complete the look.</h3></div><a class="text-link" href="accessories.html">See all <span>↗</span></a></div><div class="work-grid related-grid">' + recommendations.map(function (entry) { return card(entry, true, "GOES WITH YOUR LOOK"); }).join("") + '</div></section>' : "") + '</section></div>';
+    var modalPriceDetails = $$(".modal-copy > p", root)[2];
+    if (modalPriceDetails) {
+      var productDetails = document.createElement("div");
+      productDetails.className = "product-detail-meta";
+      productDetails.innerHTML = productDetailsMarkup(item, isAccessory);
+      modalPriceDetails.replaceWith(productDetails);
+    }
+    var modalStatus = $(".modal-copy .eyebrow", root);
+    var onSale = salePrice(item) !== null;
+    if (modalStatus && (item.isNew || onSale)) {
+      var status = document.createElement("span");
+      status.className = "product-promo-status";
+      status.textContent = item.isNew ? (onSale ? "New · On sale" : "New") : "On sale";
+      modalStatus.insertAdjacentElement("afterend", status);
+    }
     var relatedGrid = $(".related-grid", root);
     if (relatedGrid) {
       relatedGrid.tabIndex = 0;
@@ -1135,7 +1204,7 @@
     oldMainImageField.replaceWith(imageManager);
     if (oldGalleryField) oldGalleryField.remove();
     var imageList = $(".product-image-list", imageManager);
-    $(".catalog-help", host).textContent = "Edit product names, wording, prices and photos here. Accessory galleries start with placeholder atelier photos; replace them with product photos. Every product has at least three editable picture slots. Save to commit changes to GitHub; GitHub Pages deploys them to the live site.";
+    $(".catalog-help", host).textContent = "Edit product names, descriptions, regular and sale prices, sizes, stock, new status and photos here. Leave sale price blank when the item is not discounted. Accessory galleries start with placeholder atelier photos; replace them with product photos. Save to commit changes to GitHub; GitHub Pages deploys them to the live site.";
     var message = $(".product-save-message", host);
     var submit = $('button[type="submit"]', form);
     var editKind = "";
@@ -1150,6 +1219,32 @@
       tagline: form.elements.tagline.parentNode,
       description: form.elements.description.parentNode
     };
+    editorFields.price.removeAttribute("data-product-field");
+    editorFields.price.firstChild.textContent = "Regular price in ₦";
+    function productInputField(labelText, name, type, placeholder) {
+      var label = document.createElement("label");
+      label.appendChild(document.createTextNode(labelText));
+      var input = document.createElement("input");
+      input.name = name;
+      input.type = type;
+      input.placeholder = placeholder || "";
+      if (type === "number") {
+        input.min = "0";
+        input.step = "1";
+      }
+      label.appendChild(input);
+      return label;
+    }
+    var salePriceField = productInputField("Sale price in ₦ (optional)", "salePrice", "number", "Leave blank when not discounted");
+    var sizesField = productInputField("Available sizes (comma-separated)", "sizes", "text", "XS, S, M, L, XL");
+    var quantityField = productInputField("Quantity in stock (optional)", "quantity", "number", "Leave blank if not tracked");
+    var isNewField = document.createElement("label");
+    isNewField.className = "product-new-field";
+    var isNewInput = document.createElement("input");
+    isNewInput.type = "checkbox";
+    isNewInput.name = "isNew";
+    isNewField.appendChild(isNewInput);
+    isNewField.appendChild(document.createTextNode(" Mark this product as new"));
     function editorSection(title, fields, sectionClass) {
       var section = document.createElement("section");
       section.className = "product-editor-section" + (sectionClass ? " " + sectionClass : "");
@@ -1165,7 +1260,8 @@
     editorGrid.className = "product-editor-sections";
     editorGrid.innerHTML = "";
     editorGrid.appendChild(editorSection("Basics", [editorFields.kind, editorFields.name, editorFields.category], "product-editor-basics"));
-    editorGrid.appendChild(editorSection("Details", [editorFields.recipient, editorFields.type, editorFields.price, editorFields.tagline, editorFields.description], "product-editor-details"));
+    editorGrid.appendChild(editorSection("Pricing and availability", [editorFields.price, salePriceField, sizesField, quantityField, isNewField], "product-editor-pricing"));
+    editorGrid.appendChild(editorSection("Details", [editorFields.recipient, editorFields.type, editorFields.tagline, editorFields.description], "product-editor-details"));
     editorGrid.appendChild(editorSection("Pictures", [imageManager], "product-editor-pictures"));
     function updateImageRows() {
       $$(".product-image-row", imageList).forEach(function (row, index) {
@@ -1312,6 +1408,13 @@
       var kind = String(data.get("kind") || "design");
       var name = String(data.get("name") || "").trim();
       var category = String(data.get("category") || "").trim();
+      var rawPrice = String(data.get("price") || "").trim();
+      var rawSalePrice = String(data.get("salePrice") || "").trim();
+      var rawQuantity = String(data.get("quantity") || "").trim();
+      var regularPrice = rawPrice === "" ? null : Number(rawPrice);
+      var discountedPrice = rawSalePrice === "" ? null : Number(rawSalePrice);
+      var quantity = rawQuantity === "" ? null : Number(rawQuantity);
+      var sizes = String(data.get("sizes") || "").split(",").map(function (size) { return size.trim(); }).filter(Boolean);
       var allImages = $$(".product-image-row", imageList).map(function (row) {
         return row.dataset.imageSource || $(".product-image-path", row).value.trim();
       }).filter(Boolean);
@@ -1320,6 +1423,13 @@
       var nextAccessories = accessories.slice();
       var target = kind === "accessory" ? nextAccessories : nextWorks;
       if (!name || !category) { message.textContent = "Add a product name and category."; return; }
+      if (kind === "accessory" && regularPrice === null) { message.textContent = "Add a regular price for this accessory."; return; }
+      if (regularPrice !== null && (!Number.isFinite(regularPrice) || regularPrice < 0)) { message.textContent = "Enter a valid regular price."; return; }
+      if (discountedPrice !== null && (!Number.isFinite(discountedPrice) || regularPrice === null || regularPrice <= 0 || discountedPrice < 0 || discountedPrice >= regularPrice)) {
+        message.textContent = "Sale price must be lower than the regular price.";
+        return;
+      }
+      if (quantity !== null && (!Number.isInteger(quantity) || quantity < 0)) { message.textContent = "Enter a whole number for quantity."; return; }
       if (kind === "design" && !allImages.length) { message.textContent = "Add a cover image path for a custom design."; return; }
       if (allImages.some(function (src) {
         return /^(javascript|file):/i.test(src) || (/^data:/i.test(src) && !/^data:image\/jpeg;base64,/i.test(src));
@@ -1341,7 +1451,12 @@
         image: allImages[0] || "",
         images: allImages,
         tagline: String(data.get("tagline") || "").trim(),
-        description: String(data.get("description") || "").trim()
+        description: String(data.get("description") || "").trim(),
+        price: regularPrice,
+        salePrice: discountedPrice,
+        sizes: sizes,
+        quantity: quantity,
+        isNew: data.get("isNew") === "on"
       };
       if (kind === "design") {
         item.recipient = String(data.get("recipient") || "").trim();
@@ -1349,7 +1464,6 @@
       }
       else {
         item.type = String(data.get("type") || "clutch");
-        item.price = Number(data.get("price") || 0);
       }
       if (index === -1) target.unshift(item);
       else target[index] = item;
@@ -1378,7 +1492,11 @@
         setImageRows(itemImages(item));
         form.elements.recipient.value = item.recipient || "";
         form.elements.type.value = item.type || "clutch";
-        form.elements.price.value = item.price || "";
+        form.elements.price.value = item.price === null || item.price === undefined ? "" : item.price;
+        form.elements.salePrice.value = item.salePrice === null || item.salePrice === undefined ? "" : item.salePrice;
+        form.elements.sizes.value = productSizes(item).join(", ");
+        form.elements.quantity.value = item.quantity === null || item.quantity === undefined ? "" : item.quantity;
+        form.elements.isNew.checked = item.isNew === true;
         form.elements.tagline.value = item.tagline || "";
         form.elements.description.value = item.description || "";
         submit.innerHTML = 'Save changes <span>↗</span>';
