@@ -20,7 +20,7 @@
   ];
   var storyDefaults = {
     copy: {
-      heroEyebrow: "OUR STORY · HALIMA CRYSTAL ATELIER",
+      heroEyebrow: "OUR STORY · BUKOLA CRYSTAL ATELIER",
       heroTitle: "The woman is the beginning.",
       heroTitleAccent: "The story is the design.",
       heroIntro: "Every look starts with a person, a moment and the feeling she wants to carry with her.",
@@ -151,6 +151,16 @@
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char];
     });
   }
+  function diamondOMarkup() {
+    return '<span class="diamond-o" role="img" aria-label="O"><svg viewBox="0 0 20 24" aria-hidden="true"><path d="M4 2h12l4 6-10 14L0 8z" fill="#bd9d70"/><path d="M4 2 7 8h6l3-6M0 8h20M7 8l3 14 3-14" fill="none" stroke="#f8f6f2" stroke-width="1"/></svg></span>';
+  }
+  function brandTextMarkup(value) {
+    return escapeHtml(value).replace(/\b(Bukola|Halima)\b/gi, function (word) {
+      var uppercase = word === word.toUpperCase();
+      var capitalized = word.charAt(0) === word.charAt(0).toUpperCase();
+      return (uppercase ? "BUK" : capitalized ? "Buk" : "buk") + diamondOMarkup() + (uppercase ? "LA" : "la");
+    });
+  }
   function record(type, item, extra) {
     var events = read(keys.events, []);
     events.push({ type: type, item: item || "", page: document.body.dataset.page || "", at: new Date().toISOString(), extra: extra || "" });
@@ -239,7 +249,7 @@
       return byte.toString(16).padStart(2, "0");
     }).join("");
   }
-  function brand() { return CFG.brand || "Halima Crystal Atelier"; }
+  function brand() { return CFG.brand || "Bukola Crystal Atelier"; }
   function caption(item, field) {
     var captions = read(keys.captions, {});
     return captions[item.id] && captions[item.id][field] ? captions[item.id][field] : item[field];
@@ -255,7 +265,7 @@
     var navLinks = links.map(function (link) {
       return '<a href="' + link[0] + '"' + (current === link[2] ? ' class="active"' : "") + ">" + link[1] + "</a>";
     }).join("");
-    var logo = '<a class="brand" href="index.html" aria-label="' + escapeHtml(brand()) + ' home"><span class="brand-mark">✧</span><span class="brand-name">Halima Crystal<small>Atelier · Lagos</small></span></a>';
+    var logo = '<a class="brand" href="index.html" aria-label="' + escapeHtml(brand()) + ' home"><span class="brand-mark">✧</span><span class="brand-name">' + brandTextMarkup(brand().replace(/\s+Atelier$/i, "")) + '<small>Atelier · Lagos</small></span></a>';
     var host = $("#site-header");
     if (!host) return;
     host.innerHTML = '<div class="nav-wrap">' + logo + '<nav class="main-nav" aria-label="Main navigation">' + navLinks + '</nav><div class="nav-actions"><a class="nav-signup" href="signup.html">A note from us ✧</a><button class="nav-menu" type="button" aria-label="Open menu" aria-expanded="false">☰</button></div></div><nav class="mobile-nav" aria-label="Mobile navigation">' + navLinks + '<a href="signup.html">Sign up for atelier notes</a></nav>';
@@ -272,7 +282,7 @@
     var host = $("#site-footer");
     if (!host) return;
     var instagram = CFG.instagram || "https://www.instagram.com/";
-    host.innerHTML = '<div class="footer-main"><div class="footer-about"><a class="brand" href="index.html"><span class="brand-mark">✧</span><span class="brand-name">Halima Crystal<small>Atelier · Lagos</small></span></a><p>One-of-one occasionwear and thoughtful finishing touches, made with feeling.</p></div><div class="footer-column"><b>Find your way</b><a href="women.html">Women · the atelier</a><a href="accessories.html">Accessories</a><a href="design.html">Custom design</a><a href="account.html">My inspiration</a></div><div class="footer-column"><b>Let’s talk</b><a href="book.html">Book a fitting</a><a href="mailto:' + escapeHtml(CFG.email || "hello@example.com") + '">Email the atelier</a><a href="' + escapeHtml(instagram) + '" target="_blank" rel="noopener noreferrer">Instagram ↗</a></div><div class="footer-column"><b>Come say hello</b><span>' + escapeHtml(CFG.studio || "Lagos, Nigeria") + '</span><span>' + escapeHtml(CFG.hours || "Monday–Saturday, 10am–6pm") + '</span><a href="https://wa.me/' + escapeHtml(CFG.whatsapp || "") + '" target="_blank" rel="noopener noreferrer">WhatsApp us ↗</a></div></div><div class="footer-bottom"><span>© ' + new Date().getFullYear() + " " + escapeHtml(brand()) + '</span><span>Made with care, and a little sparkle. <a href="admin.html">Studio</a></span></div>';
+    host.innerHTML = '<div class="footer-main"><div class="footer-about"><a class="brand" href="index.html" aria-label="' + escapeHtml(brand()) + ' home"><span class="brand-mark">✧</span><span class="brand-name">' + brandTextMarkup(brand().replace(/\s+Atelier$/i, "")) + '<small>Atelier · Lagos</small></span></a><p>One-of-one occasionwear and thoughtful finishing touches, made with feeling.</p></div><div class="footer-column"><b>Find your way</b><a href="women.html">Women · the atelier</a><a href="accessories.html">Accessories</a><a href="design.html">Custom design</a><a href="account.html">My inspiration</a></div><div class="footer-column"><b>Let’s talk</b><a href="book.html">Book a fitting</a><a href="mailto:' + escapeHtml(CFG.email || "hello@example.com") + '">Email the atelier</a><a href="' + escapeHtml(instagram) + '" target="_blank" rel="noopener noreferrer">Instagram ↗</a></div><div class="footer-column"><b>Come say hello</b><span>' + escapeHtml(CFG.studio || "Lagos, Nigeria") + '</span><span>' + escapeHtml(CFG.hours || "Monday–Saturday, 10am–6pm") + '</span><a href="https://wa.me/' + escapeHtml(CFG.whatsapp || "") + '" target="_blank" rel="noopener noreferrer">WhatsApp us ↗</a></div></div><div class="footer-bottom"><span>© ' + new Date().getFullYear() + " " + brandTextMarkup(brand()) + '</span><span>Made with care, and a little sparkle. <a href="admin.html">Studio</a></span></div>';
   }
 
   function accessoryArtwork(item) {
@@ -663,7 +673,7 @@
     if (document.body.dataset.page !== "story") return;
     var content = getStoryContent();
     $$("[data-story-copy]").forEach(function (element) {
-      element.textContent = content.copy[element.dataset.storyCopy];
+      element.innerHTML = brandTextMarkup(content.copy[element.dataset.storyCopy]);
     });
     $$("[data-story-image]").forEach(function (element) {
       var key = element.dataset.storyImage;

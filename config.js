@@ -1,5 +1,5 @@
 window.CRYSTAL_CONFIG = {
-  brand: "Halima Crystal Atelier",
+  brand: "Bukola Crystal Atelier",
   whatsapp: "234702",
   email: "hello@example.com",
   instagram: "https://www.instagram.com/halima_stitches01/",
