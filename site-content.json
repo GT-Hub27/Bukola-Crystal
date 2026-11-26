@@ -23,28 +23,6 @@
         "recipient": ""
       },
       {
-        "id": "afterglow",
-        "name": "Afterglow",
-        "category": "Evening",
-        "image": "assets/img-2.jpg",
-        "images": [
-          "assets/img-2.jpg"
-        ],
-        "tagline": "A little midnight magic.",
-        "description": "An emerald lace silhouette with thoughtful details for the moments that deserve a little extra sparkle.",
-        "price": 500000,
-        "salePrice": 100000,
-        "sizes": [],
-        "quantity": 5,
-        "isNew": false,
-        "recipient": "the woman who owns the room.",
-        "relatedAccessories": [
-          "aso-oke-clutch",
-          "cowrie-necklace",
-          "beaded-headwrap"
-        ]
-      },
-      {
         "id": "aster",
         "name": "Aster",
         "category": "Celebration",
