@@ -81,14 +81,19 @@
         "id": "sunday-light",
         "name": "Sunday Light",
         "category": "Occasion",
-        "image": "assets/img-1iu.jpg",
+        "image": "assets/admin-upload-mwxv8smo-sjs6dg.jpg",
         "images": [
-          "assets/img-1iu.jpg",
-          "assets/img-1.jpg"
+          "assets/admin-upload-mwxv8smo-sjs6dg.jpg",
+          "assets/admin-upload-mwxv8uoe-19ph4z.jpg"
         ],
         "tagline": "A reason to make a memory.",
-        "recipient": "a day she’ll talk about forever.",
         "description": "A made-to-measure occasion look with a graceful line and room for your own signature.",
+        "price": null,
+        "salePrice": null,
+        "sizes": [],
+        "quantity": null,
+        "isNew": false,
+        "recipient": "a day she’ll talk about forever.",
         "relatedAccessories": [
           "cowrie-necklace",
           "ankara-scrunchies",
