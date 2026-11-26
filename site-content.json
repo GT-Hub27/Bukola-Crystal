@@ -2,13 +2,33 @@
   "products": {
     "works": [
       {
+        "id": "design-dark-glow",
+        "name": "Dark glow",
+        "category": "Evening",
+        "image": "assets/admin-upload-mwxs3seu-l1htqf.jpg",
+        "images": [
+          "assets/admin-upload-mwxs3seu-l1htqf.jpg",
+          "assets/admin-upload-mwxs3uye-3zgtsc.jpg"
+        ],
+        "tagline": "A little midnight magic.",
+        "description": "",
+        "price": 150000,
+        "salePrice": null,
+        "sizes": [
+          "M",
+          "L"
+        ],
+        "quantity": null,
+        "isNew": true,
+        "recipient": ""
+      },
+      {
         "id": "afterglow",
         "name": "Afterglow",
         "category": "Evening",
-        "image": "assets/admin-upload-mwxs0ut3-pecx22.jpg",
+        "image": "assets/img-2.jpg",
         "images": [
-          "assets/admin-upload-mwxs0ut3-pecx22.jpg",
-          "assets/admin-upload-mwxs0xkv-77jzm4.jpg"
+          "assets/img-2.jpg"
         ],
         "tagline": "A little midnight magic.",
         "description": "An emerald lace silhouette with thoughtful details for the moments that deserve a little extra sparkle.",
@@ -16,7 +36,7 @@
         "salePrice": 100000,
         "sizes": [],
         "quantity": 5,
-        "isNew": true,
+        "isNew": false,
         "recipient": "the woman who owns the room.",
         "relatedAccessories": [
           "aso-oke-clutch",
