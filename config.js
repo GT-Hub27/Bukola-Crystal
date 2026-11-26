@@ -11,5 +11,9 @@ window.CRYSTAL_CONFIG = {
     repository: "Bukola-Crystal",
     branch: "main",
     contentFile: "site-content.json"
+  },
+  supabase: {
+    url: "",
+    publishableKey: ""
   }
 };

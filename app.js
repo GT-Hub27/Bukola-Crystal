@@ -2,11 +2,18 @@
   "use strict";
 
   var CFG = window.CRYSTAL_CONFIG || {};
-  var keys = { customers: "crystal_customers", bookings: "crystal_bookings", events: "crystal_events", inspiration: "crystal_inspiration", captions: "crystal_captions", products: "crystal_products", story: "crystal_story", accounts: "crystal_accounts" };
+  var keys = { customers: "crystal_customers", bookings: "crystal_bookings", events: "crystal_events", inspiration: "crystal_inspiration", captions: "crystal_captions", products: "crystal_products", story: "crystal_story", accounts: "crystal_accounts", cart: "crystal_cart" };
   var publishedContent = {};
   var publishedContentLoaded = false;
   var publishedContentError = "";
   var githubToken = "";
+  var supabaseClient = null;
+  var supabaseUser = null;
+  var supabaseProfile = null;
+  var supabaseSavedIds = [];
+  var supabaseCartRows = [];
+  var supabaseInitializationError = "";
+  var supabaseAccountError = "";
   var works = [
     { id: "afterglow", name: "Afterglow", category: "Evening", image: "assets/img-2.jpg", tagline: "A little midnight magic.", recipient: "the woman who owns the room.", description: "An emerald lace silhouette with thoughtful details for the moments that deserve a little extra sparkle.", relatedAccessories: ["aso-oke-clutch", "cowrie-necklace", "beaded-headwrap"] },
     { id: "aster", name: "Aster", category: "Celebration", image: "assets/img-1iu.jpg", images: ["assets/img-1iu.jpg", "assets/img-1.jpg"], tagline: "The joy is in the details.", recipient: "her next beautiful beginning.", description: "A playful, sculpted look made for dancing, celebrating, and feeling completely yourself.", relatedAccessories: ["ankara-scrunchies", "beaded-headwrap", "cowrie-necklace"] },
@@ -157,6 +164,49 @@
     var branch = (CFG.github && CFG.github.branch) || "main";
     return githubApiRequest("GET", contentApiUrl(path) + "?ref=" + encodeURIComponent(branch));
   }
+  function supabaseIsConfigured() {
+    var config = CFG.supabase || {};
+    return !!(config.url && config.publishableKey);
+  }
+  function loadSupabaseSdk() {
+    if (window.supabase && typeof window.supabase.createClient === "function") return Promise.resolve();
+    return new Promise(function (resolve, reject) {
+      var script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2";
+      script.onload = function () {
+        if (window.supabase && typeof window.supabase.createClient === "function") resolve();
+        else reject(new Error("The Supabase client library did not load correctly."));
+      };
+      script.onerror = function () { reject(new Error("Could not load the Supabase client library.")); };
+      document.head.appendChild(script);
+    });
+  }
+  function initializeSupabase() {
+    if (!supabaseIsConfigured()) return Promise.resolve();
+    return loadSupabaseSdk().then(function () {
+      var config = CFG.supabase;
+      supabaseClient = window.supabase.createClient(config.url, config.publishableKey);
+      return supabaseClient.auth.getSession();
+    }).then(function (result) {
+      if (result.error) throw result.error;
+      supabaseUser = result.data.session ? result.data.session.user : null;
+      if (supabaseUser) return loadSupabaseAccountData();
+    });
+  }
+  function loadSupabaseAccountData() {
+    if (!supabaseClient || !supabaseUser) return Promise.resolve();
+    return Promise.all([
+      supabaseClient.from("profiles").select("full_name, phone").eq("id", supabaseUser.id).maybeSingle(),
+      supabaseClient.from("saved_inspiration").select("product_id").eq("user_id", supabaseUser.id),
+      supabaseClient.from("cart_items").select("product_id, quantity").eq("user_id", supabaseUser.id)
+    ]).then(function (results) {
+      results.forEach(function (result) { if (result.error) throw result.error; });
+      supabaseProfile = results[0].data || { full_name: "", phone: "" };
+      supabaseSavedIds = (results[1].data || []).map(function (row) { return row.product_id; });
+      supabaseCartRows = results[2].data || [];
+      updateCartBadge();
+    });
+  }
   function utf8Base64(value) {
     var bytes = new TextEncoder().encode(value);
     var binary = "";
@@ -290,13 +340,18 @@
     var root = $("#admin-root");
     if (!root) return;
     var activeTab = $(".admin-tab.active", root);
+    var ordersSelected = activeTab && activeTab.dataset.tab === "orders";
     Array.prototype.slice.call(root.children).forEach(function (element) {
       if (element.classList.contains("admin-section")) {
-        var visible = connected && activeTab && element.id === "admin-" + activeTab.dataset.tab;
+        var visible = (connected && activeTab && element.id === "admin-" + activeTab.dataset.tab)
+          || (ordersSelected && element.id === "admin-orders");
         element.hidden = !visible;
         element.style.display = visible ? "" : "none";
-      } else if (element.classList.contains("admin-head") || element.classList.contains("admin-note")
-        || element.classList.contains("admin-tabs")) {
+      } else if (element.classList.contains("admin-tabs")) {
+        var tabsVisible = connected || supabaseIsConfigured();
+        element.hidden = !tabsVisible;
+        element.style.display = tabsVisible ? "" : "none";
+      } else if (element.classList.contains("admin-head") || element.classList.contains("admin-note")) {
         element.hidden = !connected;
         element.style.display = connected ? "" : "none";
       }
@@ -448,6 +503,7 @@
     return getAccounts().find(function (account) { return account.email === email; }) || null;
   }
   function currentInspiration() {
+    if (supabaseUser) return supabaseSavedIds.slice();
     var account = currentAccount();
     return account ? (Array.isArray(account.inspiration) ? account.inspiration : []) : [];
   }
@@ -464,6 +520,7 @@
       return false;
     }
     sessionStorage.setItem("crystal_current_email", account.email);
+    updateCartBadge();
     return true;
   }
   function passwordHash(password, salt) {
@@ -494,10 +551,15 @@
     var links = [
       ["index.html", "Home", "home"], ["women.html", "Collection", "women"], ["accessories.html", "Accessories", "accessories"],
       ["design.html", "Custom design", "design"], ["story.html", "Our story", "story"], ["book.html", "Book a fitting", "book"],
-      ["account.html", "My inspiration", "account"]
+      ["account.html", "My inspiration", "account"],
+      ["account.html#cart-section", 'My bag <span class="nav-cart-count">' + cartItemCount(currentCartRows()) + "</span>", "cart"]
     ];
+    var signedIn = !!(supabaseUser || currentAccount());
     var navLinks = links.map(function (link) {
-      return '<a href="' + link[0] + '"' + (current === link[2] ? ' class="active"' : "") + ">" + link[1] + "</a>";
+      var active = current === link[2] || (link[2] === "cart" && current === "account");
+      var isCartLink = link[2] === "cart";
+      var classes = (active ? "active " : "") + (isCartLink ? "nav-cart-link" : "");
+      return '<a href="' + link[0] + '"' + (classes ? ' class="' + classes.trim() + '"' : "") + (isCartLink && !signedIn ? " hidden" : "") + ">" + link[1] + "</a>";
     }).join("");
     var logo = '<a class="brand" href="index.html" aria-label="' + escapeHtml(brand()) + ' home"><span class="brand-mark">✧</span><span class="brand-name">' + brandTextMarkup(brand().replace(/\s+Atelier$/i, "")) + '<small>Atelier · Lagos</small></span></a>';
     var host = $("#site-header");
@@ -544,6 +606,189 @@
     }
     return hasProductPrice(item) ? formatPrice(item.price) : '<span class="price-on-request">Price on request</span>';
   }
+  function productById(id) {
+    return works.concat(accessories).find(function (item) { return item.id === id; }) || null;
+  }
+  function effectiveProductPrice(item) {
+    var discountedPrice = salePrice(item);
+    return discountedPrice === null ? Number(item.price || 0) : discountedPrice;
+  }
+  function productStockLimit(item) {
+    if (item.quantity === null || item.quantity === undefined || String(item.quantity).trim() === "") return 99;
+    var quantity = Number(item.quantity);
+    return Number.isInteger(quantity) && quantity >= 0 ? Math.min(99, quantity) : 99;
+  }
+  function localCartRows() {
+    var rows = read(keys.cart, []);
+    return Array.isArray(rows) ? rows : [];
+  }
+  function currentCartRows() {
+    return supabaseUser ? supabaseCartRows : localCartRows();
+  }
+  function cartItemCount(rows) {
+    return rows.reduce(function (total, row) { return total + Number(row.quantity || 0); }, 0);
+  }
+  function cartSubtotal(rows) {
+    return rows.reduce(function (total, row) {
+      var item = productById(row.product_id);
+      return total + (item && hasProductPrice(item) ? effectiveProductPrice(item) * Number(row.quantity || 0) : 0);
+    }, 0);
+  }
+  function updateCartBadge() {
+    var count = cartItemCount(currentCartRows());
+    $$(".nav-cart-count").forEach(function (badge) { badge.textContent = String(count); });
+    $$(".account-cart-count").forEach(function (badge) { badge.textContent = String(count); });
+    var signedIn = !!(supabaseUser || currentAccount());
+    $$(".nav-cart-link").forEach(function (link) { link.hidden = !signedIn; });
+  }
+  function cartButtonMarkup(item) {
+    if (!hasProductPrice(item)) return '<span class="cart-unavailable">Add a price before ordering</span>';
+    if (productStockLimit(item) === 0) {
+      return '<span class="cart-unavailable">Currently out of stock</span>';
+    }
+    return '<button class="add-to-cart-button" type="button" data-cart-add="' + escapeHtml(item.id) + '">Add to bag</button>';
+  }
+  function showCartFeedback(message) {
+    var toast = $("#cart-feedback");
+    if (!toast) {
+      toast = document.createElement("div");
+      toast.id = "cart-feedback";
+      toast.className = "cart-feedback";
+      toast.setAttribute("role", "status");
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message;
+    toast.classList.add("visible");
+    window.clearTimeout(toast.hideTimer);
+    toast.hideTimer = window.setTimeout(function () { toast.classList.remove("visible"); }, 2600);
+  }
+  function addToCart(id, button) {
+    var item = productById(id);
+    if (!item || !hasProductPrice(item)) {
+      showCartFeedback("This piece needs a price before it can be ordered.");
+      return Promise.resolve();
+    }
+    if (!supabaseUser && !currentAccount()) {
+      showCartAuthPrompt();
+      return Promise.resolve();
+    }
+    var rows = currentCartRows().slice();
+    var existing = rows.find(function (row) { return row.product_id === id; });
+    var quantity = existing ? Number(existing.quantity) + 1 : 1;
+    if (quantity > productStockLimit(item)) {
+      showCartFeedback("That quantity isn’t available.");
+      return Promise.resolve();
+    }
+    if (button) button.disabled = true;
+    var save;
+    if (supabaseUser && supabaseClient) {
+      save = supabaseClient.from("cart_items").upsert({
+        user_id: supabaseUser.id,
+        product_id: id,
+        quantity: quantity
+      }).then(function (result) {
+        if (result.error) throw result.error;
+        return loadSupabaseAccountData();
+      });
+    } else {
+      if (existing) existing.quantity = quantity;
+      else rows.push({ product_id: id, quantity: quantity });
+      if (!write(keys.cart, rows)) return Promise.reject(new Error("Your browser couldn’t save the cart."));
+      save = Promise.resolve();
+    }
+    return save.then(function () {
+      updateCartBadge();
+      showCartFeedback(item.name + " added to your bag.");
+      if (document.body.dataset.page === "account") renderAccount();
+    }).catch(function (error) {
+      showCartFeedback("Couldn’t add this item: " + error.message);
+    }).then(function () {
+      if (button) button.disabled = false;
+    });
+  }
+  function setCartQuantity(id, quantity) {
+    var item = productById(id);
+    if (!item) return Promise.reject(new Error("This product is no longer available."));
+    if (quantity > productStockLimit(item)) {
+      return Promise.reject(new Error("That quantity isn’t available."));
+    }
+    var save;
+    if (supabaseUser && supabaseClient) {
+      if (quantity < 1) {
+        save = supabaseClient.from("cart_items").delete().eq("user_id", supabaseUser.id).eq("product_id", id);
+      } else {
+        save = supabaseClient.from("cart_items").upsert({ user_id: supabaseUser.id, product_id: id, quantity: quantity });
+      }
+      save = save.then(function (result) {
+        if (result.error) throw result.error;
+        return loadSupabaseAccountData();
+      });
+    } else {
+      var rows = localCartRows().filter(function (row) { return row.product_id !== id; });
+      if (quantity > 0) rows.push({ product_id: id, quantity: quantity });
+      if (!write(keys.cart, rows)) return Promise.reject(new Error("Your browser couldn’t update the cart."));
+      save = Promise.resolve();
+    }
+    return save.then(function () {
+      updateCartBadge();
+      if (document.body.dataset.page === "account") renderAccount();
+    });
+  }
+  function syncLocalCartToSupabase() {
+    var localRows = localCartRows();
+    if (!supabaseClient || !supabaseUser || !localRows.length) return Promise.resolve();
+    var quantities = {};
+    supabaseCartRows.forEach(function (row) { quantities[row.product_id] = Number(row.quantity); });
+    localRows.forEach(function (row) {
+      quantities[row.product_id] = Math.min(99, (quantities[row.product_id] || 0) + Number(row.quantity || 0));
+    });
+    var rows = Object.keys(quantities).map(function (id) {
+      return { user_id: supabaseUser.id, product_id: id, quantity: quantities[id] };
+    });
+    return supabaseClient.from("cart_items").upsert(rows).then(function (result) {
+      if (result.error) throw result.error;
+      localStorage.removeItem(keys.cart);
+      return loadSupabaseAccountData();
+    });
+  }
+  function cartRowsMarkup(rows) {
+    if (!rows.length) return '<p class="empty-state">Your bag is empty. Add a priced piece from the collection or accessories.</p>';
+    return '<div class="account-cart-list">' + rows.map(function (row) {
+      var item = productById(row.product_id);
+      var label = item ? item.name : "Product unavailable";
+      var unitPrice = item && hasProductPrice(item) ? formatPrice(effectiveProductPrice(item)) : "Unavailable";
+      return '<article class="account-cart-row"><div class="account-cart-product"><b>' + escapeHtml(label) + '</b><span>' + escapeHtml(unitPrice) + ' each</span></div><div class="cart-quantity-control"><button type="button" data-cart-change="-1" data-cart-product="' + escapeHtml(row.product_id) + '" aria-label="Decrease quantity">−</button><span>' + Number(row.quantity) + '</span><button type="button" data-cart-change="1" data-cart-product="' + escapeHtml(row.product_id) + '" aria-label="Increase quantity">+</button></div><button class="cart-remove" type="button" data-cart-remove="' + escapeHtml(row.product_id) + '">Remove</button></article>';
+    }).join("") + '</div><div class="account-cart-total"><span>Subtotal</span><b>' + formatPrice(cartSubtotal(rows)) + '</b></div>';
+  }
+  function setupCommerceEvents() {
+    document.addEventListener("click", function (event) {
+      var addButton = event.target.closest("[data-cart-add]");
+      if (addButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        addToCart(addButton.dataset.cartAdd, addButton);
+        return;
+      }
+      var quantityButton = event.target.closest("[data-cart-change]");
+      if (quantityButton) {
+        event.preventDefault();
+        var current = currentCartRows().find(function (row) { return row.product_id === quantityButton.dataset.cartProduct; });
+        if (!current) return;
+        var next = Number(current.quantity) + Number(quantityButton.dataset.cartChange);
+        setCartQuantity(quantityButton.dataset.cartProduct, next).catch(function (error) {
+          showCartFeedback("Couldn’t update your bag: " + error.message);
+        });
+        return;
+      }
+      var removeButton = event.target.closest("[data-cart-remove]");
+      if (removeButton) {
+        event.preventDefault();
+        setCartQuantity(removeButton.dataset.cartRemove, 0).catch(function (error) {
+          showCartFeedback("Couldn’t remove that item: " + error.message);
+        });
+      }
+    });
+  }
   function productSizes(item) {
     var values = Array.isArray(item.sizes) ? item.sizes : String(item.sizes || "").split(",");
     return values.map(function (size) { return String(size).trim(); }).filter(Boolean);
@@ -569,7 +814,7 @@
     var picture = isAccessory && !item.image ? accessoryArtwork(item) : '<img src="' + escapeHtml(item.image || "") + '" alt="' + escapeHtml(item.name + (isAccessory ? " accessory" : " custom occasionwear")) + '" loading="lazy">';
     var sale = salePrice(item) !== null;
     var promo = item.isNew ? (sale ? "NEW · ON SALE" : "NEW") : (sale ? "ON SALE" : "");
-    return '<article class="work-card" data-item="' + escapeHtml(item.id) + '" data-accessory="' + (isAccessory ? "true" : "false") + '" tabindex="0" aria-label="View ' + escapeHtml(item.name) + '"><div class="work-image">' + picture + (badge ? '<span class="work-badge">' + escapeHtml(badge) + '</span>' : "") + (promo ? '<span class="work-badge work-badge-promo">' + promo + '</span>' : "") + '<button class="save-inspiration' + (isSaved ? " saved" : "") + '" type="button" data-save="' + escapeHtml(item.id) + '" aria-label="' + (isSaved ? "Remove from" : "Add to") + ' inspiration" aria-pressed="' + isSaved + '">' + (isSaved ? "♥" : "♡") + '</button></div><div class="work-meta"><div class="work-title-row"><h3 class="work-title">' + escapeHtml(item.name) + '</h3><span class="work-category">' + escapeHtml(item.category) + '</span></div><p class="work-tagline">“' + escapeHtml(caption(item, "tagline")) + '”</p>' + productDetailsMarkup(item, isAccessory) + '<span class="view-design">' + (isAccessory ? "View & order" : "View this story") + ' ↗</span></div></article>';
+    return '<article class="work-card" data-item="' + escapeHtml(item.id) + '" data-accessory="' + (isAccessory ? "true" : "false") + '" tabindex="0" aria-label="View ' + escapeHtml(item.name) + '"><div class="work-image">' + picture + (badge ? '<span class="work-badge">' + escapeHtml(badge) + '</span>' : "") + (promo ? '<span class="work-badge work-badge-promo">' + promo + '</span>' : "") + '<button class="save-inspiration' + (isSaved ? " saved" : "") + '" type="button" data-save="' + escapeHtml(item.id) + '" aria-label="' + (isSaved ? "Remove from" : "Add to") + ' inspiration" aria-pressed="' + isSaved + '">' + (isSaved ? "♥" : "♡") + '</button></div><div class="work-meta"><div class="work-title-row"><h3 class="work-title">' + escapeHtml(item.name) + '</h3><span class="work-category">' + escapeHtml(item.category) + '</span></div><p class="work-tagline">“' + escapeHtml(caption(item, "tagline")) + '”</p>' + productDetailsMarkup(item, isAccessory) + '<span class="view-design">' + (isAccessory ? "View & order" : "View this story") + ' ↗</span>' + cartButtonMarkup(item) + '</div></article>';
   }
   function renderCollection() {
     var featured = $('[data-collection="featured"]');
@@ -594,13 +839,13 @@
     }
     $$(".work-card").forEach(function (element) {
       element.addEventListener("click", function (event) {
-        if (event.target.closest("[data-save], [data-accessory-order]")) return;
+        if (event.target.closest("[data-save], [data-accessory-order], [data-cart-add]")) return;
         var id = element.dataset.item;
         var isAccessory = element.dataset.accessory === "true";
         openItem(id, isAccessory);
       });
       element.addEventListener("keydown", function (event) {
-        if ((event.key === "Enter" || event.key === " ") && !event.target.closest("[data-save], [data-accessory-order]")) {
+        if ((event.key === "Enter" || event.key === " ") && !event.target.closest("[data-save], [data-accessory-order], [data-cart-add]")) {
           event.preventDefault();
           openItem(element.dataset.item, element.dataset.accessory === "true");
         }
@@ -656,10 +901,10 @@
   function renderCollectionEvents() {
     $$(".work-card").forEach(function (element) {
       element.addEventListener("click", function (event) {
-        if (!event.target.closest("[data-save], [data-accessory-order]")) openItem(element.dataset.item, element.dataset.accessory === "true");
+        if (!event.target.closest("[data-save], [data-accessory-order], [data-cart-add]")) openItem(element.dataset.item, element.dataset.accessory === "true");
       });
       element.addEventListener("keydown", function (event) {
-        if ((event.key === "Enter" || event.key === " ") && !event.target.closest("[data-save], [data-accessory-order]")) {
+        if ((event.key === "Enter" || event.key === " ") && !event.target.closest("[data-save], [data-accessory-order], [data-cart-add]")) {
           event.preventDefault();
           openItem(element.dataset.item, element.dataset.accessory === "true");
         }
@@ -678,11 +923,13 @@
       });
     });
   }
-  function showInspirationAuthPrompt() {
+  function showAccountAuthPrompt(promptId, title, description) {
     var root = $("#modal-root") || document.body;
-    if ($("#inspiration-auth-prompt", root)) return;
-    root.insertAdjacentHTML("beforeend", '<div class="auth-prompt" id="inspiration-auth-prompt"><section class="auth-prompt-card" role="dialog" aria-modal="true" aria-labelledby="inspiration-auth-title"><button class="auth-prompt-close" type="button" aria-label="Close">×</button><span class="auth-prompt-gem">✧</span><p class="eyebrow">A LITTLE STEP BEFORE WE BEGIN</p><h2 id="inspiration-auth-title">Sign in to save this look.</h2><p>Sign in or create an atelier account to add looks to your inspiration.</p><div class="auth-prompt-actions"><a class="button" href="account.html#login-form">Sign in <span>↗</span></a><a class="text-link" href="account.html#create-account-form">Create an account <span>↗</span></a></div></section></div>');
-    var prompt = $("#inspiration-auth-prompt", root);
+    if ($("#" + promptId, root)) return;
+    var loginTarget = supabaseIsConfigured() ? "#supabase-login-form" : "#login-form";
+    var createTarget = supabaseIsConfigured() ? "#supabase-create-form" : "#create-account-form";
+    root.insertAdjacentHTML("beforeend", '<div class="auth-prompt" id="' + promptId + '"><section class="auth-prompt-card" role="dialog" aria-modal="true" aria-labelledby="' + promptId + '-title"><button class="auth-prompt-close" type="button" aria-label="Close">×</button><span class="auth-prompt-gem">✧</span><p class="eyebrow">A LITTLE STEP BEFORE WE BEGIN</p><h2 id="' + promptId + '-title">' + title + '</h2><p>' + description + '</p><div class="auth-prompt-actions"><a class="button" href="account.html' + loginTarget + '">Sign in <span>↗</span></a><a class="text-link" href="account.html' + createTarget + '">Create an account <span>↗</span></a></div></section></div>');
+    var prompt = $("#" + promptId, root);
     function close() {
       prompt.remove();
       if (!$("#modal-root .modal-backdrop")) document.body.classList.remove("modal-open");
@@ -695,7 +942,31 @@
     document.body.classList.add("modal-open");
     $(".auth-prompt-close", prompt).focus();
   }
+  function showInspirationAuthPrompt() {
+    showAccountAuthPrompt("inspiration-auth-prompt", "Sign in to save this look.", "Sign in or create an atelier account to add looks to your inspiration.");
+  }
+  function showCartAuthPrompt() {
+    showAccountAuthPrompt("cart-auth-prompt", "Sign in to add to your bag.", "Sign in or create an atelier account before adding items to your bag.");
+  }
   function toggleInspiration(id) {
+    if (supabaseUser && supabaseClient) {
+      var liveAdded = supabaseSavedIds.indexOf(id) === -1;
+      var liveRequest = liveAdded
+        ? supabaseClient.from("saved_inspiration").insert({ user_id: supabaseUser.id, product_id: id })
+        : supabaseClient.from("saved_inspiration").delete().eq("user_id", supabaseUser.id).eq("product_id", id);
+      liveRequest.then(function (result) {
+        if (result.error) throw result.error;
+        supabaseSavedIds = liveAdded
+          ? supabaseSavedIds.concat([id])
+          : supabaseSavedIds.filter(function (value) { return value !== id; });
+        record(liveAdded ? "inspiration_saved" : "inspiration_removed", itemName(id));
+        updateInspirationButtons(id, liveAdded);
+        if (document.body.dataset.page === "account") renderAccount();
+      }).catch(function (error) {
+        window.alert("We couldn’t update your saved inspiration: " + error.message);
+      });
+      return;
+    }
     var account = currentAccount();
     if (!account) {
       showInspirationAuthPrompt();
@@ -711,6 +982,10 @@
     }));
     if (!saved) { window.alert("We couldn’t save this inspiration in your browser. Please check your storage and try again."); return; }
     record(added ? "inspiration_saved" : "inspiration_removed", itemName(id));
+    updateInspirationButtons(id, added);
+    if (document.body.dataset.page === "account") renderAccount();
+  }
+  function updateInspirationButtons(id, added) {
     $$('[data-save="' + id + '"]').forEach(function (button) {
       button.classList.toggle("saved", added);
       button.setAttribute("aria-pressed", String(added));
@@ -722,7 +997,6 @@
       modalSave.textContent = added ? "♥ Saved to your inspiration" : "♡ Add to your inspiration";
       modalSave.setAttribute("aria-pressed", String(added));
     }
-    if (document.body.dataset.page === "account") renderAccount();
   }
   function itemName(id) {
     var found = works.concat(accessories).find(function (item) { return item.id === id; });
@@ -783,6 +1057,14 @@
     var backdrop = $(".modal-backdrop", root);
     $(".modal-close", root).addEventListener("click", closeModal);
     backdrop.addEventListener("click", function (event) { if (event.target === backdrop) closeModal(); });
+    if (hasProductPrice(item) && productStockLimit(item) > 0) {
+      var addToBag = document.createElement("button");
+      addToBag.className = "add-to-cart-button modal-add-to-cart";
+      addToBag.type = "button";
+      addToBag.dataset.cartAdd = item.id;
+      addToBag.textContent = "Add to bag";
+      $("#modal-save", root).before(addToBag);
+    }
     if (isAccessory) {
       var orderLink = $(".modal-copy > a.button", root);
       orderLink.href = accessoryOrderUrl(item);
@@ -798,7 +1080,7 @@
     });
     $$(".modal-related .work-card", root).forEach(function (element) {
       element.addEventListener("click", function (event) {
-        if (event.target.closest("[data-save]")) return;
+        if (event.target.closest("[data-save], [data-cart-add]")) return;
         closeModal();
         openItem(element.dataset.item, true);
       });
@@ -1036,6 +1318,98 @@
     revealElements.forEach(function (element) { observer.observe(element); });
   }
 
+  function supabaseAccountAuthMarkup() {
+    if (!supabaseIsConfigured()) {
+      return '<div class="supabase-auth-note"><b>Online customer accounts are not connected yet.</b> The local preview below is saved only in this browser.</div>';
+    }
+    if (!supabaseClient) {
+      return '<div class="supabase-auth-note"><b>Online accounts are unavailable.</b> ' + escapeHtml(supabaseInitializationError || "Check the Supabase URL and publishable key in config.js.") + '</div>';
+    }
+    return '<section class="supabase-auth-panel"><p class="eyebrow">SECURE ONLINE ACCOUNT · SYNCED ACROSS DEVICES</p><div class="supabase-auth-grid"><form class="paper-form" id="supabase-create-form"><h2>Create your online account</h2><label>Your name<input name="name" autocomplete="name" required></label><label>Phone or WhatsApp<input name="phone" type="tel" autocomplete="tel" required></label><label>Email address<input name="email" type="email" autocomplete="email" required></label><label>Password<input name="password" type="password" autocomplete="new-password" minlength="8" required></label><button class="button" type="submit">Create account <span>↗</span></button><p class="form-message" aria-live="polite"></p></form><form class="paper-form" id="supabase-login-form"><h2>Sign in to your online account</h2><label>Email address<input name="email" type="email" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button class="button" type="submit">Sign in <span>↗</span></button><p class="form-message" aria-live="polite"></p></form></div><p class="account-local-note">Online orders and saved inspiration sync across devices. Your old local preview account remains separate.</p></section>';
+  }
+  function activateSupabaseUser(user) {
+    supabaseUser = user;
+    supabaseAccountError = "";
+    sessionStorage.removeItem("crystal_current_email");
+    return loadSupabaseAccountData().then(function () {
+      return syncLocalCartToSupabase();
+    }).catch(function (error) {
+      supabaseAccountError = error.message || "Your online account could not be loaded.";
+    });
+  }
+  function setupSupabaseAuthForms(root) {
+    if (!supabaseClient) return;
+    var createForm = $("#supabase-create-form", root);
+    var loginForm = $("#supabase-login-form", root);
+    if (createForm) createForm.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var message = $(".form-message", createForm);
+      var data = new FormData(createForm);
+      var submit = $('button[type="submit"]', createForm);
+      submit.disabled = true;
+      supabaseClient.auth.signUp({
+        email: String(data.get("email") || "").trim().toLowerCase(),
+        password: String(data.get("password") || ""),
+        options: {
+          emailRedirectTo: new URL("account.html", location.href).href,
+          data: { full_name: String(data.get("name") || "").trim(), phone: String(data.get("phone") || "").trim() }
+        }
+      }).then(function (result) {
+        if (result.error) throw result.error;
+        if (!result.data.session || !result.data.user) {
+          message.textContent = "Check your email to confirm your account, then sign in here.";
+          return;
+        }
+        return activateSupabaseUser(result.data.user).then(function () { renderAccount(); });
+      }).catch(function (error) {
+        message.textContent = "We couldn’t create your online account: " + error.message;
+      }).then(function () {
+        submit.disabled = false;
+      });
+    });
+    if (loginForm) loginForm.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var message = $(".form-message", loginForm);
+      var data = new FormData(loginForm);
+      var submit = $('button[type="submit"]', loginForm);
+      submit.disabled = true;
+      supabaseClient.auth.signInWithPassword({
+        email: String(data.get("email") || "").trim().toLowerCase(),
+        password: String(data.get("password") || "")
+      }).then(function (result) {
+        if (result.error) throw result.error;
+        return activateSupabaseUser(result.data.user).then(function () { renderAccount(); });
+      }).catch(function (error) {
+        message.textContent = "We couldn’t sign in: " + error.message;
+      }).then(function () {
+        submit.disabled = false;
+      });
+    });
+  }
+  function syncCatalogToSupabase() {
+    if (!supabaseClient || !supabaseUser) return Promise.reject(new Error("Sign in to the online admin account first."));
+    var products = works.concat(accessories).map(function (item) {
+      return {
+        id: item.id,
+        name: item.name,
+        kind: accessories.some(function (entry) { return entry.id === item.id; }) ? "accessory" : "design",
+        price: hasProductPrice(item) ? Number(item.price) : null,
+        salePrice: salePrice(item),
+        image: item.image || ""
+      };
+    });
+    return supabaseClient.rpc("sync_store_products", { p_products: products }).then(function (result) {
+      if (result.error) throw result.error;
+    });
+  }
+  function syncCatalogIfAdmin() {
+    if (!supabaseClient || !supabaseUser) return Promise.resolve(false);
+    return supabaseClient.rpc("is_admin").then(function (result) {
+      if (result.error) throw result.error;
+      if (result.data !== true) return false;
+      return syncCatalogToSupabase().then(function () { return true; });
+    });
+  }
   function accountReturnTarget() {
     var target = new URLSearchParams(location.search).get("return");
     if (!target) return "";
@@ -1053,14 +1427,118 @@
     else renderAccount();
     return true;
   }
+  function orderStatusLabel(status) {
+    return {
+      placed: "Order placed",
+      received: "Order received",
+      payment_confirmed: "Payment confirmed",
+      shipped: "Shipped",
+      delivered: "Received by customer",
+      cancelled: "Cancelled"
+    }[status] || status;
+  }
+  function renderSupabaseAccount(root) {
+    root.innerHTML = '<div class="account-loading" role="status">Loading your online account…</div>';
+    return Promise.all([
+      loadSupabaseAccountData(),
+      supabaseClient.from("orders").select("id, status, customer_name, phone, shipping_address, subtotal, created_at, order_items(product_name, product_kind, image, quantity, unit_price, line_total), order_status_history(status, created_at)").order("created_at", { ascending: false })
+    ]).then(function (results) {
+      if (results[1].error) throw results[1].error;
+      var orders = results[1].data || [];
+      var profile = supabaseProfile || {};
+      var customerName = profile.full_name || (supabaseUser.user_metadata && supabaseUser.user_metadata.full_name) || supabaseUser.email || "there";
+      var savedItems = works.concat(accessories).filter(function (item) { return supabaseSavedIds.indexOf(item.id) !== -1; });
+      var orderMarkup = orders.length ? '<div class="account-order-list">' + orders.map(function (order) {
+        var items = order.order_items || [];
+        var timeline = (order.order_status_history || []).map(function (entry) {
+          return '<li><span>' + escapeHtml(orderStatusLabel(entry.status)) + '</span><time>' + escapeHtml(formatDate(entry.created_at)) + '</time></li>';
+        }).join("");
+        return '<article class="account-order-card"><div class="account-order-heading"><div><p class="eyebrow">ORDER ' + escapeHtml(order.id.slice(0, 8).toUpperCase()) + '</p><h3>' + escapeHtml(orderStatusLabel(order.status)) + '</h3></div><time>' + escapeHtml(formatDate(order.created_at)) + '</time></div><ul class="account-order-items">' + items.map(function (item) {
+          return '<li><span>' + escapeHtml(item.product_name) + ' × ' + Number(item.quantity) + '</span><b>' + formatPrice(item.line_total) + '</b></li>';
+        }).join("") + '</ul><div class="account-order-total"><span>Total</span><b>' + formatPrice(order.subtotal) + '</b></div><details class="order-status-history"><summary>Status updates</summary><ol>' + timeline + '</ol></details></article>';
+      }).join("") + '</div>' : '<p class="empty-state">Your order history will appear here after you place an order.</p>';
+      root.innerHTML = '<section class="account-dashboard"><div class="account-heading"><div><p class="eyebrow">YOUR ONLINE ATELIER ACCOUNT</p><h1>Welcome, <em>' + escapeHtml(customerName.split(" ")[0]) + '.</em></h1><p>Your bag, saved inspiration and order updates sync with your account.</p></div><button class="admin-btn" id="supabase-signout" type="button">Sign out</button></div><div class="account-shortcuts"><a class="button" href="book.html">Book a fitting <span>↗</span></a><a class="text-link" href="design.html">Start a custom design <span>↗</span></a><a class="text-link" href="#cart-section">View your bag · <span class="account-cart-count">' + cartItemCount(supabaseCartRows) + '</span></a></div>' + (supabaseAccountError ? '<p class="account-error" role="alert">' + escapeHtml(supabaseAccountError) + '</p>' : '') + '<section class="account-cart" id="cart-section"><div class="section-heading"><div><p class="eyebrow">YOUR BAG</p><h2>Items to order</h2></div><span class="collection-count"><span class="account-cart-count">' + cartItemCount(supabaseCartRows) + '</span> items</span></div>' + cartRowsMarkup(supabaseCartRows) + (supabaseCartRows.length ? '<form class="checkout-form" id="checkout-form"><h3>Delivery details</h3><div class="form-pair"><label>Name<input name="name" autocomplete="name" value="' + escapeHtml(profile.full_name || customerName) + '" required></label><label>Phone or WhatsApp<input name="phone" type="tel" autocomplete="tel" value="' + escapeHtml(profile.phone || "") + '" required></label></div><label>Delivery address<textarea name="address" rows="3" autocomplete="street-address" required></textarea></label><p class="checkout-note">Payment is arranged directly with the atelier. Your order total is calculated from current product prices.</p><button class="button" type="submit">Place order <span>↗</span></button><p class="form-message" aria-live="polite"></p></form>' : '') + '</section><section class="account-orders"><div class="section-heading"><div><p class="eyebrow">YOUR PURCHASES</p><h2>Order history</h2></div><span class="collection-count">' + orders.length + (orders.length === 1 ? " order" : " orders") + '</span></div>' + orderMarkup + '</section><section class="account-saved"><div class="section-heading"><div><p class="eyebrow">YOUR LITTLE COLLECTION</p><h2>Liked inspiration</h2></div><span class="collection-count">' + savedItems.length + (savedItems.length === 1 ? " saved piece" : " saved pieces") + '</span></div>' + (savedItems.length ? '<div class="work-grid">' + savedItems.map(function (item) { return card(item, accessories.indexOf(item) !== -1, "SAVED FOR YOU"); }).join("") + '</div>' : '<p class="empty-state">Tap the heart on a design or accessory to keep it here.</p>') + '</section></section>';
+      $$(".work-card", root).forEach(function (element) {
+        var item = accessories.find(function (entry) { return entry.id === element.dataset.item; });
+        if (!item) return;
+        var orderLink = document.createElement("a");
+        orderLink.className = "button saved-accessory-order";
+        orderLink.href = accessoryOrderUrl(item);
+        orderLink.target = "_blank";
+        orderLink.rel = "noopener noreferrer";
+        orderLink.dataset.accessoryOrder = item.id;
+        orderLink.innerHTML = 'Ask on WhatsApp <span>↗</span>';
+        element.appendChild(orderLink);
+      });
+      setupSupabaseCheckout(root);
+      renderCollectionEvents();
+      $("#supabase-signout", root).addEventListener("click", function () {
+        supabaseClient.auth.signOut().then(function (result) {
+          if (result.error) throw result.error;
+          supabaseUser = null;
+          supabaseProfile = null;
+          supabaseSavedIds = [];
+          supabaseCartRows = [];
+          updateCartBadge();
+          renderAccount();
+        }).catch(function (error) {
+          window.alert("We couldn’t sign out: " + error.message);
+        });
+      });
+    }).catch(function (error) {
+      supabaseAccountError = error.message || "Your online account could not be loaded.";
+      root.innerHTML = '<section class="account-dashboard"><p class="account-error" role="alert">Couldn’t load your online account: ' + escapeHtml(supabaseAccountError) + '</p><button class="admin-btn" id="account-retry-load" type="button">Try again</button></section>';
+      $("#account-retry-load", root).addEventListener("click", function () { renderSupabaseAccount(root); });
+    });
+  }
+  function setupSupabaseCheckout(root) {
+    var form = $("#checkout-form", root);
+    if (!form) return;
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var message = $(".form-message", form);
+      var submit = $('button[type="submit"]', form);
+      if (!supabaseCartRows.length) { message.textContent = "Your bag is empty."; return; }
+      submit.disabled = true;
+      message.textContent = "Placing your order…";
+      var data = new FormData(form);
+      supabaseClient.rpc("create_order", {
+        p_items: supabaseCartRows.map(function (row) { return { product_id: row.product_id, quantity: Number(row.quantity) }; }),
+        p_customer_name: String(data.get("name") || "").trim(),
+        p_phone: String(data.get("phone") || "").trim(),
+        p_shipping_address: String(data.get("address") || "").trim()
+      }).then(function (result) {
+        if (result.error) throw result.error;
+        message.textContent = "Order placed. You can follow each update in your order history.";
+        supabaseAccountError = "";
+        return renderSupabaseAccount(root);
+      }).catch(function (error) {
+        message.textContent = "We couldn’t place your order: " + error.message;
+      }).then(function () {
+        submit.disabled = false;
+      });
+    });
+  }
   function renderAccount() {
     var root = $("#account-root");
     if (!root) return;
+    if (supabaseUser && supabaseClient) {
+      renderSupabaseAccount(root);
+      return;
+    }
     var account = currentAccount();
     if (account) {
       var savedIds = currentInspiration();
       var savedItems = works.concat(accessories).filter(function (item) { return savedIds.indexOf(item.id) !== -1; });
       root.innerHTML = '<section class="account-dashboard"><div class="account-heading"><div><p class="eyebrow">YOUR ATELIER ACCOUNT</p><h1>Welcome, <em>' + escapeHtml(account.name.split(" ")[0]) + '.</em></h1><p>Your saved designs and finishing touches live here.</p></div><button class="admin-btn" id="account-signout" type="button">Sign out</button></div><div class="account-shortcuts"><a class="button" href="book.html">Book a fitting <span>↗</span></a><a class="text-link" href="design.html">Start a custom design <span>↗</span></a></div><section class="account-saved"><div class="section-heading"><div><p class="eyebrow">YOUR LITTLE COLLECTION</p><h2>Saved inspiration</h2></div><span class="collection-count">' + savedItems.length + (savedItems.length === 1 ? " saved piece" : " saved pieces") + '</span></div>' + (savedItems.length ? '<div class="work-grid">' + savedItems.map(function (item) { return card(item, accessories.indexOf(item) !== -1, "SAVED FOR YOU"); }).join("") + '</div>' : '<p class="empty-state">You haven’t saved anything yet. Tap the heart on a design or accessory to keep it here.</p>') + '</section></section>';
+      if (supabaseIsConfigured()) {
+        $(".account-shortcuts", root).insertAdjacentHTML("beforeend", '<a class="text-link" href="account.html">Sign in to online orders <span>↗</span></a>');
+      }
+      var localCartSection = document.createElement("section");
+      localCartSection.id = "cart-section";
+      localCartSection.className = "account-cart";
+      localCartSection.innerHTML = '<div class="section-heading"><div><p class="eyebrow">LOCAL PREVIEW BAG</p><h2>Items to order</h2></div><span class="collection-count"><span class="account-cart-count">' + cartItemCount(localCartRows()) + '</span> items</span></div>' + cartRowsMarkup(localCartRows()) + '<p class="account-local-note">This preview bag is saved only on this device. Sign in to an online account to place an order and sync order history.</p>';
+      $(".account-shortcuts", root).insertAdjacentElement("afterend", localCartSection);
       $$(".work-card", root).forEach(function (element) {
         var item = accessories.find(function (entry) { return entry.id === element.dataset.item; });
         if (!item) return;
@@ -1075,12 +1553,15 @@
       });
       $("#account-signout", root).addEventListener("click", function () {
         sessionStorage.removeItem("crystal_current_email");
+        updateCartBadge();
         renderAccount();
       });
       renderCollectionEvents();
       return;
     }
-    root.innerHTML = '<section class="account-auth"><div class="account-intro"><p class="eyebrow">YOUR PERSONAL ATELIER SPACE</p><h1>Keep the pieces<br><em>that feel like you.</em></h1><p>Sign in to find your saved inspiration, request a fitting, or share a custom design idea.</p><span>✧</span></div><div class="account-forms"><form class="paper-form" id="create-account-form"><p class="eyebrow">NEW TO THE ATELIER?</p><h2>Create your account</h2><label>Your name<input name="name" autocomplete="name" required></label><label>Phone or WhatsApp <span>(optional)</span><input name="phone" type="tel" autocomplete="tel"></label><label>Email address<input name="email" type="email" autocomplete="email" required></label><label>Password <span>(at least 8 characters)</span><input name="password" type="password" autocomplete="new-password" minlength="8" required></label><button class="button" type="submit">Create account <span>↗</span></button><p class="form-message" aria-live="polite"></p></form><form class="paper-form" id="login-form"><p class="eyebrow">WELCOME BACK</p><h2>Sign in</h2><label>Email address<input name="email" type="email" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button class="button" type="submit">Sign in <span>↗</span></button><p class="form-message" aria-live="polite"></p></form><p class="account-local-note">Preview accounts are stored only in this browser. This static demo is not secure for real customer accounts; connect a secure backend before publishing.</p></div></section>';
+    root.innerHTML = '<section class="account-auth"><div class="account-intro"><p class="eyebrow">LOCAL PREVIEW · THIS DEVICE ONLY</p><h1>Keep the pieces<br><em>that feel like you.</em></h1><p>Sign in to your preview account for saved inspiration on this device.</p><span>✧</span></div><div class="account-forms"><form class="paper-form" id="create-account-form"><p class="eyebrow">LOCAL PREVIEW ACCOUNT</p><h2>Create a preview account</h2><label>Your name<input name="name" autocomplete="name" required></label><label>Phone or WhatsApp <span>(optional)</span><input name="phone" type="tel" autocomplete="tel"></label><label>Email address<input name="email" type="email" autocomplete="email" required></label><label>Password <span>(at least 8 characters)</span><input name="password" type="password" autocomplete="new-password" minlength="8" required></label><button class="button" type="submit">Create preview account <span>↗</span></button><p class="form-message" aria-live="polite"></p></form><form class="paper-form" id="login-form"><p class="eyebrow">LOCAL PREVIEW</p><h2>Sign in</h2><label>Email address<input name="email" type="email" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><button class="button" type="submit">Sign in <span>↗</span></button><p class="form-message" aria-live="polite"></p></form><p class="account-local-note">Preview accounts, saved inspiration, and cart are stored only in this browser. Online orders require a Supabase account.</p></div></section>';
+    root.insertAdjacentHTML("afterbegin", supabaseAccountAuthMarkup());
+    setupSupabaseAuthForms(root);
     var createForm = $("#create-account-form", root);
     createForm.addEventListener("submit", function (event) {
       event.preventDefault();
@@ -1164,6 +1645,8 @@
     setupGitHubPublisher(root);
     $(".admin-tabs", root).insertAdjacentHTML("beforeend", '<button class="admin-tab" data-tab="catalog">Products</button>');
     root.insertAdjacentHTML("beforeend", '<section class="admin-section" id="admin-catalog" hidden></section>');
+    $(".admin-tabs", root).insertAdjacentHTML("beforeend", '<button class="admin-tab" data-tab="orders">Orders</button>');
+    root.insertAdjacentHTML("beforeend", '<section class="admin-section" id="admin-orders" hidden></section>');
     setAdminAccess(false);
     refreshAdmin();
     renderCaptionEditor();
@@ -1177,6 +1660,7 @@
           section.hidden = !visible;
           section.style.display = visible ? "" : "none";
         });
+        if (tab.dataset.tab === "orders") renderAdminOrders();
       });
     });
     $("#admin-export").addEventListener("click", exportBookings);
@@ -1184,6 +1668,7 @@
       if (!window.confirm("Clear all preview bookings, customer records and analytics from this browser?")) return;
       [keys.customers, keys.bookings, keys.events, keys.inspiration, keys.accounts].forEach(function (key) { localStorage.removeItem(key); });
       sessionStorage.removeItem("crystal_current_email");
+      updateCartBadge();
       refreshAdmin();
     });
   }
@@ -1511,10 +1996,16 @@
       else target[index] = item;
       message.textContent = "Publishing product to GitHub…";
       publishSiteContent({ products: { works: nextWorks, accessories: nextAccessories } }).then(function () {
+        return syncCatalogIfAdmin().then(function () { return ""; }).catch(function (error) {
+          return error.message || "The online order catalog could not be updated.";
+        });
+      }).then(function (syncError) {
         record(index === -1 ? "product_added" : "product_updated", item.name);
         renderCatalogEditor(activeKind);
         renderCaptionEditor();
-        setGitHubStatus("Product published to GitHub. GitHub Pages will update after deployment finishes.");
+        setGitHubStatus(syncError
+          ? "Product published to the storefront, but the online order catalog could not be updated: " + syncError
+          : "Product published to GitHub. GitHub Pages will update after deployment finishes.");
       }).catch(function (error) {
         message.textContent = "We couldn’t publish this product: " + error.message;
       });
@@ -1558,10 +2049,16 @@
         var nextWorks = works.filter(function (item) { return !(parts[0] === "design" && item.id === parts[1]); });
         var nextAccessories = accessories.filter(function (item) { return !(parts[0] === "accessory" && item.id === parts[1]); });
         publishSiteContent({ products: { works: nextWorks, accessories: nextAccessories } }).then(function () {
+          return syncCatalogIfAdmin().then(function () { return ""; }).catch(function (error) {
+            return error.message || "The online order catalog could not be updated.";
+          });
+        }).then(function (syncError) {
           record("product_removed", itemName(parts[1]));
           renderCatalogEditor(activeKind);
           renderCaptionEditor();
-          setGitHubStatus("Product removed from the live catalog. GitHub Pages will update after deployment finishes.");
+          setGitHubStatus(syncError
+            ? "Product removed from the storefront, but the online order catalog could not be updated: " + syncError
+            : "Product removed from the live catalog. GitHub Pages will update after deployment finishes.");
         }).catch(function (error) {
           setGitHubStatus("Could not remove product: " + error.message);
         });
@@ -1603,6 +2100,109 @@
     return '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th>Joined</th><th>Email updates</th><th>Source</th></tr></thead><tbody>' + customers.map(function (customer) {
       return "<tr><td><b>" + escapeHtml(customer.name) + "</b></td><td>" + escapeHtml(customer.email || "—") + "</td><td>" + escapeHtml(customer.phone || "—") + "</td><td>" + escapeHtml(formatDate(customer.createdAt)) + "</td><td>" + (customer.emailOptInAt ? "Yes" : "No") + "</td><td>" + escapeHtml(customer.source || "Website") + "</td></tr>";
     }).join("") + "</tbody></table></div>";
+  }
+  function renderAdminOrders() {
+    var host = $("#admin-orders");
+    if (!host) return;
+    if (!supabaseIsConfigured()) {
+      host.innerHTML = '<div class="admin-panel"><h2>Customer orders</h2><p class="account-local-note">Configure Supabase using SUPABASE_SETUP.md to enable shared orders.</p></div>';
+      return;
+    }
+    if (!supabaseClient) {
+      host.innerHTML = '<div class="admin-panel"><h2>Customer orders</h2><p class="account-error" role="alert">' + escapeHtml(supabaseInitializationError || "Supabase is not available. Check the project URL and publishable key.") + '</p></div>';
+      return;
+    }
+    if (!supabaseUser) {
+      host.innerHTML = '<div class="admin-panel"><p class="eyebrow">ONLINE ORDER MANAGEMENT</p><h2>Sign in as the studio admin</h2><p class="catalog-help">Use the Supabase account that has been granted admin access. This is separate from the GitHub publishing token.</p><form class="product-form" id="admin-supabase-login"><label>Email<input name="email" type="email" autocomplete="username" required></label><label>Password<input name="password" type="password" autocomplete="current-password" required></label><div class="product-form-actions"><button class="button" type="submit">Sign in <span>↗</span></button><span class="form-message" aria-live="polite"></span></div></form></div>';
+      var loginForm = $("#admin-supabase-login", host);
+      loginForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        var data = new FormData(loginForm);
+        var message = $(".form-message", loginForm);
+        var button = $('button[type="submit"]', loginForm);
+        button.disabled = true;
+        supabaseClient.auth.signInWithPassword({
+          email: String(data.get("email") || "").trim().toLowerCase(),
+          password: String(data.get("password") || "")
+        }).then(function (result) {
+          if (result.error) throw result.error;
+          supabaseUser = result.data.user;
+          return loadSupabaseAccountData().then(function () { renderAdminOrders(); });
+        }).catch(function (error) {
+          message.textContent = "Couldn’t sign in to order management: " + error.message;
+        }).then(function () {
+          button.disabled = false;
+        });
+      });
+      return;
+    }
+    host.innerHTML = '<div class="admin-panel"><p class="eyebrow">ONLINE ORDER MANAGEMENT</p><h2>Checking admin access…</h2><p class="catalog-help">Your order data is private to the customer and authorized studio admins.</p></div>';
+    supabaseClient.rpc("is_admin").then(function (access) {
+      if (access.error) throw access.error;
+      if (access.data !== true) throw new Error("This Supabase account is not listed as a studio admin.");
+      return syncCatalogToSupabase();
+    }).then(function () {
+      return supabaseClient.from("orders").select("id, status, customer_name, customer_email, phone, shipping_address, subtotal, created_at, order_items(product_name, quantity, line_total), order_status_history(status, created_at)").order("created_at", { ascending: false });
+    }).then(function (result) {
+      if (result.error) throw result.error;
+      var orders = result.data || [];
+      var cards = orders.map(function (order) {
+        var items = (order.order_items || []).map(function (item) {
+          return '<li><span>' + escapeHtml(item.product_name) + ' × ' + Number(item.quantity) + '</span><b>' + formatPrice(item.line_total) + '</b></li>';
+        }).join("");
+        var history = (order.order_status_history || []).map(function (entry) {
+          return '<li>' + escapeHtml(orderStatusLabel(entry.status)) + ' · ' + escapeHtml(formatDate(entry.created_at)) + '</li>';
+        }).join("");
+        var actionMarkup = "";
+        var next = {
+          placed: ["received", "Mark order received"],
+          received: ["payment_confirmed", "Confirm payment"],
+          payment_confirmed: ["shipped", "Mark as shipped"],
+          shipped: ["delivered", "Confirm customer received item"]
+        }[order.status];
+        if (next) {
+          actionMarkup += '<button class="admin-btn" type="button" data-admin-order-status="' + next[0] + '" data-admin-order-id="' + escapeHtml(order.id) + '">' + next[1] + '</button>';
+          actionMarkup += '<button class="admin-btn" type="button" data-admin-order-status="cancelled" data-admin-order-id="' + escapeHtml(order.id) + '">Cancel purchase</button>';
+        }
+        return '<article class="admin-order-card"><div class="admin-order-heading"><div><p class="eyebrow">ORDER ' + escapeHtml(order.id.slice(0, 8).toUpperCase()) + '</p><h3>' + escapeHtml(orderStatusLabel(order.status)) + '</h3></div><time>' + escapeHtml(formatDate(order.created_at)) + '</time></div><div class="admin-order-customer"><b>' + escapeHtml(order.customer_name) + '</b><a href="mailto:' + escapeHtml(order.customer_email) + '">' + escapeHtml(order.customer_email) + '</a><a href="tel:' + escapeHtml(order.phone) + '">' + escapeHtml(order.phone) + '</a><p>' + escapeHtml(order.shipping_address) + '</p></div><ul class="account-order-items">' + items + '</ul><div class="account-order-total"><span>Total</span><b>' + formatPrice(order.subtotal) + '</b></div><details class="order-status-history"><summary>Status updates</summary><ol>' + history + '</ol></details><div class="admin-order-actions">' + actionMarkup + '</div></article>';
+      }).join("");
+      host.innerHTML = '<div class="admin-panel"><div class="admin-order-toolbar"><div><p class="eyebrow">CUSTOMER PURCHASES</p><h2>Orders · ' + orders.length + '</h2></div><button class="admin-btn" id="admin-order-refresh" type="button">Refresh orders</button><button class="admin-btn" id="admin-order-signout" type="button">Sign out of online admin</button></div>' + (orders.length ? '<div class="admin-order-list">' + cards + '</div>' : '<p class="empty-state">No customer orders have been placed yet.</p>') + '</div>';
+      $("#admin-order-refresh", host).addEventListener("click", renderAdminOrders);
+      $("#admin-order-signout", host).addEventListener("click", function () {
+        supabaseClient.auth.signOut().then(function (result) {
+          if (result.error) throw result.error;
+          supabaseUser = null;
+          supabaseProfile = null;
+          supabaseSavedIds = [];
+          supabaseCartRows = [];
+          updateCartBadge();
+          renderAdminOrders();
+        }).catch(function (error) {
+          window.alert("Couldn’t sign out of order management: " + error.message);
+        });
+      });
+      $$("[data-admin-order-status]", host).forEach(function (button) {
+        button.addEventListener("click", function () {
+          var nextStatus = button.dataset.adminOrderStatus;
+          var confirmText = nextStatus === "cancelled" ? "Cancel this purchase?" : "Update this order to " + orderStatusLabel(nextStatus) + "?";
+          if (!window.confirm(confirmText)) return;
+          button.disabled = true;
+          supabaseClient.rpc("admin_set_order_status", {
+            p_order_id: button.dataset.adminOrderId,
+            p_status: nextStatus
+          }).then(function (updated) {
+            if (updated.error) throw updated.error;
+            renderAdminOrders();
+          }).catch(function (error) {
+            button.disabled = false;
+            window.alert("Couldn’t update order status: " + error.message);
+          });
+        });
+      });
+    }).catch(function (error) {
+      host.innerHTML = '<div class="admin-panel"><p class="eyebrow">ONLINE ORDER MANAGEMENT</p><h2>Order dashboard unavailable</h2><p class="account-error" role="alert">' + escapeHtml(error.message || "Could not load orders.") + '</p><button class="admin-btn" id="admin-order-retry" type="button">Try again</button></div>';
+      $("#admin-order-retry", host).addEventListener("click", renderAdminOrders);
+    });
   }
   function renderStoryEditor() {
     var host = $("#admin-story");
@@ -1862,6 +2462,7 @@
     }
     normalizeAccessoryImages();
     applyStoryContent();
+    setupCommerceEvents();
     header();
     footer();
     renderCollection();
@@ -1872,13 +2473,21 @@
     setupSignupPopup();
     setupStoryMotion();
   }
-  loadPublishedContent().then(function () {
-    initializeApp();
-  }).catch(function (error) {
+  loadPublishedContent().catch(function (error) {
     publishedContentError = error.message;
     publishedContent = {};
     publishedContentLoaded = false;
     console.error("Could not load shared site content:", error);
+  }).then(function () {
+    return initializeSupabase();
+  }).catch(function (error) {
+    supabaseInitializationError = error.message || "Could not initialize Supabase.";
+    console.error("Could not initialize Supabase:", error);
+  }).then(function () {
+    return syncLocalCartToSupabase().catch(function (error) {
+      supabaseAccountError = error.message || "The local bag could not be synced to your online account.";
+    });
+  }).then(function () {
     initializeApp();
   });
 }());
