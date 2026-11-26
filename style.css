@@ -77,13 +77,13 @@ h1 em,h2 em,p em{font-weight:500}
 .work-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
 .work-grid-wide{grid-template-columns:repeat(3,minmax(0,1fr));row-gap:52px}
 .accessory-carousel{position:relative}
-.home-accessories .accessory-carousel .work-grid{display:flex;gap:22px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;overscroll-behavior-inline:contain;touch-action:pan-x;padding:4px 2px 20px;cursor:grab}
+.home-accessories .accessory-carousel .work-grid{display:flex;gap:22px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;overscroll-behavior-inline:contain;padding:4px 2px 20px;cursor:grab}
 .home-accessories .accessory-carousel .work-grid::-webkit-scrollbar{display:none}
 .home-accessories .accessory-carousel .work-card{flex:0 0 calc((100% - 44px)/3);scroll-snap-align:start}
 .home-accessories{padding-top:20px;padding-bottom:65px}
 .home-accessories .work-image{aspect-ratio:1/1}
 .featured-carousel{position:relative}
-.home-featured .featured-carousel .work-grid{display:flex;gap:22px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;overscroll-behavior-inline:contain;touch-action:pan-x;padding:4px 2px 20px;cursor:grab}
+.home-featured .featured-carousel .work-grid{display:flex;gap:22px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;overscroll-behavior-inline:contain;padding:4px 2px 20px;cursor:grab}
 .home-featured .featured-carousel .work-grid::-webkit-scrollbar{display:none}
 .home-featured .featured-carousel .work-card{flex:0 0 calc((100% - 44px)/3);scroll-snap-align:start}
 .accessory-scroll{position:absolute;z-index:3;top:36%;width:42px;height:42px;border:1px solid #e6e1e6;border-radius:50%;background:var(--white);color:var(--plum);font:500 25px/1 var(--serif);cursor:pointer;box-shadow:0 4px 18px #302d3520;transition:transform .2s,background .2s}
