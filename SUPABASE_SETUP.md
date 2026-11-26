@@ -18,4 +18,6 @@ The storefront can run its local preview without Supabase. Shared customer accou
 
 Unpriced designs stay inquiry-only until a price is set in the product editor. Existing browser-only preview accounts and saved inspiration remain local to the device and do not migrate into Supabase. Customers must create a Supabase account for cross-device order history.
 
+On the account page, selecting “Remember me” keeps the customer signed in on that device after the browser is closed. Leaving it unchecked limits the session to the current browser session.
+
 Orders are submitted on the website; payment is recorded manually by the admin. The status flow is placed, received, payment confirmed, shipped, delivered, or cancelled.

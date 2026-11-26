@@ -372,7 +372,7 @@ h1 em,h2 em,p em{font-weight:500}
 .art-scrunchie .art-object{width:38%;aspect-ratio:1;border-radius:50%;border:15px dotted #b77c7c;box-shadow:0 0 0 3px #f4d9d4,0 13px 22px #76555a30}
 .art-scrunchie .art-stone{top:36%;right:36%;background:linear-gradient(135deg,#fff,#db9da7 48%,#9b6169)}
 .consent-row{display:flex!important;align-items:flex-start;gap:9px;font-weight:400!important;letter-spacing:0!important}
-.paper-form .consent-row input{width:14px;height:14px;flex:none;margin:2px 0 0;accent-color:var(--plum)}
+.paper-form .consent-row input{width:14px;height:14px;flex:none;margin:2px 0 0;padding:0;border:0;background:transparent;accent-color:var(--plum)}
 .caption-editor{display:grid;grid-template-columns:1fr 1fr;gap:14px 18px;padding:17px 0;border-top:1px solid var(--line)}
 .caption-editor h3{grid-column:1/-1;font-size:19px;margin:0}
 .caption-editor label{display:block;color:#77717b;font-size:9px;letter-spacing:.08em;text-transform:uppercase}
@@ -460,6 +460,9 @@ h1 em,h2 em,p em{font-weight:500}
 .auth-gate h2{font-size:clamp(28px,3vw,38px);margin:0 0 12px}
 .auth-gate>p:not(.eyebrow){font-size:12px;color:var(--muted)}
 .product-form{border-top:1px solid var(--line);padding-top:18px}
+.github-publisher .product-form>label{display:block;max-width:640px;margin:0 0 14px;color:#5d5661;font-size:10px;font-weight:600}
+.github-publisher .product-form input[name="token"]{display:block;width:100%;max-width:640px;min-height:44px;margin-top:6px;padding:10px 12px;border:1px solid #e6e0e6;background:#fffefa;color:var(--ink);font:12px var(--sans)}
+.github-publisher .product-form input[name="token"]:focus{border-color:#9b829d;box-shadow:0 0 0 2px #9b829d1c;outline:none}
 .product-editor-sections{display:grid}
 .product-editor-section{padding:14px 0;border-bottom:1px solid var(--line)}
 .product-editor-section h3{font:600 10px var(--sans);letter-spacing:.13em;text-transform:uppercase;color:#77717b;margin:0 0 9px}

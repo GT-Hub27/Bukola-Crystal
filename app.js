@@ -2,7 +2,8 @@
   "use strict";
 
   var CFG = window.CRYSTAL_CONFIG || {};
-  var keys = { customers: "crystal_customers", bookings: "crystal_bookings", events: "crystal_events", inspiration: "crystal_inspiration", captions: "crystal_captions", products: "crystal_products", story: "crystal_story", accounts: "crystal_accounts", cart: "crystal_cart" };
+  var keys = { customers: "crystal_customers", bookings: "crystal_bookings", events: "crystal_events", inspiration: "crystal_inspiration", captions: "crystal_captions", products: "crystal_products", story: "crystal_story", accounts: "crystal_accounts", cart: "crystal_cart", rememberedEmail: "crystal_remembered_email" };
+  var supabaseRememberKey = "crystal_remember_online_session";
   var publishedContent = {};
   var publishedContentLoaded = false;
   var publishedContentError = "";
@@ -181,11 +182,51 @@
       document.head.appendChild(script);
     });
   }
+  function supabaseAuthStorage() {
+    return localStorage.getItem(supabaseRememberKey) === "false" ? sessionStorage : localStorage;
+  }
+  var supabaseSessionStorage = {
+    getItem: function (key) {
+      return supabaseAuthStorage().getItem(key);
+    },
+    setItem: function (key, value) {
+      var remember = localStorage.getItem(supabaseRememberKey) !== "false";
+      var destination = remember ? localStorage : sessionStorage;
+      var other = remember ? sessionStorage : localStorage;
+      other.removeItem(key);
+      destination.setItem(key, value);
+    },
+    removeItem: function (key) {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    }
+  };
+  function setSupabaseRememberPreference(form) {
+    var checkbox = $('input[name="rememberMe"]', form);
+    localStorage.setItem(supabaseRememberKey, String(!!(checkbox && checkbox.checked)));
+  }
+  function addRememberMeCheckbox(form, checked) {
+    if (!form) return;
+    var label = document.createElement("label");
+    label.className = "consent-row";
+    var checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.name = "rememberMe";
+    checkbox.checked = !!checked;
+    var text = document.createElement("span");
+    text.textContent = "Remember me";
+    label.appendChild(checkbox);
+    label.appendChild(text);
+    var submit = $('button[type="submit"]', form) || $("button", form);
+    if (submit) form.insertBefore(label, submit);
+  }
   function initializeSupabase() {
     if (!supabaseIsConfigured()) return Promise.resolve();
     return loadSupabaseSdk().then(function () {
       var config = CFG.supabase;
-      supabaseClient = window.supabase.createClient(config.url, config.publishableKey);
+      supabaseClient = window.supabase.createClient(config.url, config.publishableKey, {
+        auth: { persistSession: true, storage: supabaseSessionStorage }
+      });
       return supabaseClient.auth.getSession();
     }).then(function (result) {
       if (result.error) throw result.error;
@@ -499,7 +540,7 @@
   }
   function getAccounts() { return read(keys.accounts, []); }
   function currentAccount() {
-    var email = sessionStorage.getItem("crystal_current_email") || "";
+    var email = sessionStorage.getItem("crystal_current_email") || localStorage.getItem(keys.rememberedEmail) || "";
     return getAccounts().find(function (account) { return account.email === email; }) || null;
   }
   function currentInspiration() {
@@ -514,14 +555,29 @@
     });
     return saved;
   }
-  function useAccount(account) {
+  function useAccount(account, remember) {
     account.inspiration = Array.isArray(account.inspiration) ? account.inspiration : [];
     if (!write(keys.accounts, getAccounts().map(function (entry) { return entry.email === account.email ? account : entry; }))) {
       return false;
     }
-    sessionStorage.setItem("crystal_current_email", account.email);
+    try {
+      if (remember) {
+        localStorage.setItem(keys.rememberedEmail, account.email);
+        sessionStorage.removeItem("crystal_current_email");
+      } else {
+        sessionStorage.setItem("crystal_current_email", account.email);
+        localStorage.removeItem(keys.rememberedEmail);
+      }
+    } catch (error) {
+      return false;
+    }
     updateCartBadge();
     return true;
+  }
+  function clearLocalAccountSession() {
+    sessionStorage.removeItem("crystal_current_email");
+    localStorage.removeItem(keys.rememberedEmail);
+    updateCartBadge();
   }
   function passwordHash(password, salt) {
     var bytes = new TextEncoder().encode(password);
@@ -1341,12 +1397,15 @@
     if (!supabaseClient) return;
     var createForm = $("#supabase-create-form", root);
     var loginForm = $("#supabase-login-form", root);
+    addRememberMeCheckbox(createForm, localStorage.getItem(supabaseRememberKey) === "true");
+    addRememberMeCheckbox(loginForm, localStorage.getItem(supabaseRememberKey) === "true");
     if (createForm) createForm.addEventListener("submit", function (event) {
       event.preventDefault();
       var message = $(".form-message", createForm);
       var data = new FormData(createForm);
       var submit = $('button[type="submit"]', createForm);
       submit.disabled = true;
+      setSupabaseRememberPreference(createForm);
       supabaseClient.auth.signUp({
         email: String(data.get("email") || "").trim().toLowerCase(),
         password: String(data.get("password") || ""),
@@ -1373,6 +1432,7 @@
       var data = new FormData(loginForm);
       var submit = $('button[type="submit"]', loginForm);
       submit.disabled = true;
+      setSupabaseRememberPreference(loginForm);
       supabaseClient.auth.signInWithPassword({
         email: String(data.get("email") || "").trim().toLowerCase(),
         password: String(data.get("password") || "")
@@ -1419,8 +1479,8 @@
       ? destination.href
       : "";
   }
-  function finishAccountAccess(account) {
-    if (!useAccount(account)) return false;
+  function finishAccountAccess(account, remember) {
+    if (!useAccount(account, remember)) return false;
     record("account_login", "", account.email);
     var destination = accountReturnTarget();
     if (destination) location.assign(destination);
@@ -1552,8 +1612,7 @@
         element.appendChild(orderLink);
       });
       $("#account-signout", root).addEventListener("click", function () {
-        sessionStorage.removeItem("crystal_current_email");
-        updateCartBadge();
+        clearLocalAccountSession();
         renderAccount();
       });
       renderCollectionEvents();
@@ -1563,6 +1622,9 @@
     root.insertAdjacentHTML("afterbegin", supabaseAccountAuthMarkup());
     setupSupabaseAuthForms(root);
     var createForm = $("#create-account-form", root);
+    var loginForm = $("#login-form", root);
+    addRememberMeCheckbox(createForm, false);
+    addRememberMeCheckbox(loginForm, false);
     createForm.addEventListener("submit", function (event) {
       event.preventDefault();
       var message = $(".form-message", createForm);
@@ -1597,12 +1659,11 @@
           return;
         }
         record("account_signup", "", email);
-        if (!finishAccountAccess(account)) message.textContent = "We couldn’t start your account session. Please try again.";
+        if (!finishAccountAccess(account, data.get("rememberMe") === "on")) message.textContent = "We couldn’t start your account session. Please try again.";
       }).catch(function () {
         message.textContent = "We couldn’t create your account in this browser. Please try again.";
       });
     });
-    var loginForm = $("#login-form", root);
     [createForm, loginForm].forEach(function (form) {
       $(".form-message", form).insertAdjacentHTML("beforebegin", '<div class="google-auth-divider"><span>or</span></div><button class="google-auth-button" type="button" data-google-auth><span class="google-auth-mark" aria-hidden="true">G</span>Continue with Google</button>');
       $(".google-auth-button", form).addEventListener("click", function () {
@@ -1622,7 +1683,7 @@
       if (!account) { message.textContent = "We couldn’t find an account with that email."; return; }
       passwordHash(String(data.get("password") || ""), account.passwordSalt).then(function (hash) {
         if (hash !== account.passwordHash) { message.textContent = "That password doesn’t match this account."; return; }
-        if (!finishAccountAccess(account)) message.textContent = "We couldn’t start your account session. Please try again.";
+        if (!finishAccountAccess(account, data.get("rememberMe") === "on")) message.textContent = "We couldn’t start your account session. Please try again.";
       }).catch(function () {
         message.textContent = "We couldn’t sign you in from this browser. Please try again.";
       });
@@ -1667,8 +1728,7 @@
     $("#admin-clear").addEventListener("click", function () {
       if (!window.confirm("Clear all preview bookings, customer records and analytics from this browser?")) return;
       [keys.customers, keys.bookings, keys.events, keys.inspiration, keys.accounts].forEach(function (key) { localStorage.removeItem(key); });
-      sessionStorage.removeItem("crystal_current_email");
-      updateCartBadge();
+      clearLocalAccountSession();
       refreshAdmin();
     });
   }
