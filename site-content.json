@@ -5,9 +5,10 @@
         "id": "afterglow",
         "name": "Afterglow",
         "category": "Evening",
-        "image": "assets/img-2.jpg",
+        "image": "assets/admin-upload-mwxs0ut3-pecx22.jpg",
         "images": [
-          "assets/img-2.jpg"
+          "assets/admin-upload-mwxs0ut3-pecx22.jpg",
+          "assets/admin-upload-mwxs0xkv-77jzm4.jpg"
         ],
         "tagline": "A little midnight magic.",
         "description": "An emerald lace silhouette with thoughtful details for the moments that deserve a little extra sparkle.",
@@ -15,7 +16,7 @@
         "salePrice": 100000,
         "sizes": [],
         "quantity": 5,
-        "isNew": false,
+        "isNew": true,
         "recipient": "the woman who owns the room.",
         "relatedAccessories": [
           "aso-oke-clutch",
