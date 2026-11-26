@@ -40,35 +40,32 @@ h1 em,h2 em,p em{font-weight:500}
 .text-link span{font-size:15px}
 .hero{max-width:1440px;margin:auto;min-height:645px;padding:69px 8.2vw 59px;display:grid;grid-template-columns:1fr .93fr;align-items:center;gap:6.5vw;position:relative;overflow:hidden}
 .hero-copy{padding:10px 0 20px;position:relative;z-index:1}
-.hero h1{font-size:clamp(56px,7vw,98px);letter-spacing:-.048em;margin:0 0 23px}
+.hero h1{font-size:clamp(46px,4.8vw,76px);letter-spacing:-.048em;margin:0 0 23px}
 .hero h1 em,.section-heading h2 em,.intro h2 em,.pathway h2 em,.accessory-copy h2 em,.bottom-cta h2 em,.page-hero h1 em,.collection h2 em,.design-request h2 em,.booking-form h2 em,.story-copy h2 em,.signup-form h1 em{color:var(--plum);font-style:italic}
 .hero-lead{font-size:14px;max-width:380px;color:var(--muted);margin-bottom:28px}
 .hero-actions{display:flex;align-items:center;gap:25px;flex-wrap:wrap}
 .hero-note{display:flex;align-items:center;gap:12px;margin-top:55px;font:italic 13px var(--serif);color:var(--muted);line-height:1.4}
 .hero-note b{font-weight:500;color:var(--plum)}
 .gem-small{font-size:24px;color:var(--gold)}
-.hero-art{position:relative;max-width:520px;justify-self:center;width:100%;padding:20px 20px 35px}
-.hero-frame{height:495px;overflow:hidden;position:relative;border-radius:48% 48% 2px 2px;background:transparent}
-.crystal-stage{position:absolute;inset:0;display:grid;place-items:center;overflow:hidden;background:transparent}
-.crystal-aura{position:absolute;width:72%;aspect-ratio:1;border:1px solid rgba(255,255,255,.68);border-radius:50%;box-shadow:0 0 42px rgba(255,255,255,.56),inset 0 0 38px rgba(255,255,255,.36);animation:crystal-aura 6s ease-in-out infinite}
-.crystal-ring{position:absolute;width:85%;height:30%;border:1px solid rgba(255,255,255,.42);border-radius:50%;transform:rotate(-24deg);animation:crystal-ring 10s linear infinite}
-.crystal-ring-two{width:78%;height:26%;transform:rotate(32deg);animation-direction:reverse;opacity:.65}
-.hero-crystal{position:relative;z-index:1;width:90%;height:92%;overflow:visible;filter:drop-shadow(0 24px 24px rgba(70,49,91,.25));animation:crystal-float 6s ease-in-out infinite}
-.crystal-small-left{transform-origin:151px 350px;animation:crystal-shimmer 5s ease-in-out infinite}
-.crystal-small-right{transform-origin:356px 340px;animation:crystal-shimmer 5s ease-in-out -2.4s infinite}
-.crystal-flare{opacity:.7;animation:crystal-twinkle 3s ease-in-out infinite}
-.crystal-sparkle{position:absolute;z-index:2;color:#fff;text-shadow:0 0 12px rgba(255,255,255,.95),0 0 24px rgba(216,189,242,.85);animation:crystal-twinkle 2.8s ease-in-out infinite}
+.hero-art{position:relative;max-width:570px;justify-self:center;width:100%;padding:20px 20px 35px}
+.hero-frame{height:520px;overflow:hidden;position:relative;border-radius:48% 48% 2px 2px;background:transparent}
+.crystal-stage{position:absolute;inset:0;display:grid;place-items:center;overflow:hidden;background:radial-gradient(ellipse at 50% 48%,rgba(235,228,237,.72),rgba(248,246,242,.35) 48%,transparent 72%)}
+.crystal-aura{position:absolute;width:72%;aspect-ratio:1;border:1px solid rgba(189,157,112,.3);border-radius:50%;box-shadow:0 0 42px rgba(189,157,112,.15),inset 0 0 38px rgba(216,198,236,.3);animation:crystal-aura 6s ease-in-out infinite}
+.crystal-ring{position:absolute;width:85%;height:30%;border:1px solid rgba(81,67,84,.2);border-radius:50%;transform:rotate(-24deg);animation:crystal-ring 10s linear infinite}
+.crystal-ring-two{width:78%;height:26%;border-color:rgba(189,157,112,.32);transform:rotate(32deg);animation-direction:reverse;opacity:.65}
+.hero-gown{position:relative;z-index:1;min-width:0;min-height:0;width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;animation:hero-image-float 7s ease-in-out infinite}
+.crystal-sparkle{position:absolute;z-index:2;color:#bd9d70;text-shadow:0 0 10px rgba(255,255,255,.95),0 0 22px rgba(189,157,112,.38);animation:crystal-twinkle 2.8s ease-in-out infinite}
 .sparkle-one{top:25%;left:18%;font-size:21px}
 .sparkle-two{top:33%;right:17%;font-size:28px;animation-delay:-1.3s}
 .sparkle-three{bottom:23%;left:23%;font-size:15px;animation-delay:-.7s}
-@keyframes crystal-float{0%,100%{transform:translateY(4px) rotate(-1deg)}50%{transform:translateY(-13px) rotate(1deg)}}
+@keyframes hero-image-float{0%,100%{transform:translateY(4px) scale(1)}50%{transform:translateY(-9px) scale(1.012)}}
 @keyframes crystal-aura{0%,100%{transform:scale(.94);opacity:.62}50%{transform:scale(1.05);opacity:1}}
 @keyframes crystal-ring{0%{transform:rotate(-24deg) scale(.96)}50%{transform:rotate(0deg) scale(1.04)}100%{transform:rotate(24deg) scale(.96)}}
-@keyframes crystal-shimmer{0%,100%{opacity:.8}50%{opacity:1}}
 @keyframes crystal-twinkle{0%,100%{opacity:.25;transform:scale(.75)}50%{opacity:1;transform:scale(1.18)}}
 .hero-caption{position:absolute;bottom:17px;left:5px;font:italic 14px var(--serif);color:var(--muted)}
-.float-gem{position:absolute;color:#b89e81}
-.gem-one{font-size:40px;left:-4px;top:17%}.gem-two{font-size:19px;right:3px;bottom:25%}
+.float-gem{position:absolute;color:#b89e81;animation:gem-drift 5s ease-in-out infinite}
+.gem-one{font-size:40px;left:-4px;top:17%}.gem-two{font-size:19px;right:3px;bottom:25%;animation-delay:-2.2s}
+@keyframes gem-drift{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-9px) rotate(8deg)}}
 .hero-index{position:absolute;bottom:25px;right:7.7vw;font-size:9px;letter-spacing:.2em;color:#8f8990}.hero-index span{color:var(--gold)}
 .intro{text-align:center;padding-top:95px;padding-bottom:102px}
 .intro h2,.section-heading h2,.accessory-copy h2,.bottom-cta h2,.collection h2,.story-copy h2,.design-request h2,.booking-form h2{font-size:clamp(34px,4.4vw,56px);letter-spacing:-.025em;margin-bottom:15px}
@@ -383,14 +380,20 @@ h1 em,h2 em,p em{font-weight:500}
 @media(max-width:1100px){.nav-wrap .main-nav,.nav-wrap .nav-signup{display:none}.nav-wrap .nav-menu{display:block}.mobile-nav.open{display:flex;flex-direction:column;background:var(--paper);padding:4px 6vw 17px;border-top:1px solid var(--line)}.mobile-nav.open a{padding:10px 0;border-bottom:1px solid #ebe6eb;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#5b5360}}
 @media(max-width:560px){.caption-editor{grid-template-columns:1fr}.caption-editor h3{grid-column:auto}.caption-save-message{margin:10px 0 0;display:block}}
 @media(max-width:760px){
-  .hero{row-gap:0}
-  .hero-copy{display:contents}
-  .hero-copy>.eyebrow{grid-row:1}
-  .hero-copy>h1{grid-row:2}
-  .hero-copy>.hero-lead{grid-row:3}
-  .hero-art{grid-row:4;margin-inline:auto}
-  .hero-copy>.hero-actions{grid-row:5}
-  .hero-copy>.hero-note{grid-row:6}
+  .hero{min-height:clamp(620px,calc(100vh - 90px),760px);min-height:clamp(620px,calc(100svh - 90px),760px);padding:38px 7vw 44px;grid-template-columns:minmax(0,1fr);align-items:center;gap:0}
+  .hero-copy{display:block;position:relative;z-index:2;width:100%;max-width:620px;margin:auto;padding:18px 0;text-align:center;background:radial-gradient(ellipse at center,rgba(248,246,242,.82),rgba(248,246,242,.58) 58%,transparent 100%)}
+  .hero-copy>*{grid-row:auto}
+  .hero h1{font-size:clamp(32px,8.4vw,46px);line-height:1.06;margin-bottom:16px}
+  .hero-lead{font-size:12px;max-width:330px;margin:0 auto 20px}
+  .hero-actions{justify-content:center;gap:12px}
+  .hero-actions .button{min-height:38px;padding:0 13px;font-size:8px;gap:8px}
+  .hero-actions .text-link{font-size:8px;gap:6px}
+  .hero-note{justify-content:center;margin-top:18px;font-size:12px}
+  .hero-art{position:absolute;inset:0;z-index:0;grid-row:auto;max-width:none;width:100%;height:100%;padding:0;margin:0;justify-self:stretch;pointer-events:none}
+  .hero-frame{height:100%;border-radius:0}
+  .hero-gown{width:112%;height:100%;max-width:none}
+  .hero-caption{left:50%;bottom:12px;transform:translateX(-50%);font-size:11px;white-space:nowrap}
+  .hero-index{z-index:2;bottom:12px;right:7vw}
 }
 @media(max-width:980px){
   .home-accessories .accessory-carousel .work-card{flex-basis:47%}
