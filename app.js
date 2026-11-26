@@ -210,6 +210,11 @@
     }, function (error) {
       if (error.status !== 404) throw error;
       return put("");
+    }).catch(function (error) {
+      if (error.status !== 409) throw error;
+      return getGitHubFile(path).then(function (file) {
+        return put(file.sha);
+      });
     });
   }
   function publishImage(source) {
