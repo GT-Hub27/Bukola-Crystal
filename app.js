@@ -238,7 +238,14 @@
       return uploaded[value];
     }
     if (Array.isArray(value)) {
-      return Promise.all(value.map(function (entry) { return publishImages(entry, uploaded); }));
+      var result = [];
+      return value.reduce(function (chain, entry, index) {
+        return chain.then(function () {
+          return publishImages(entry, uploaded).then(function (published) {
+            result[index] = published;
+          });
+        });
+      }, Promise.resolve()).then(function () { return result; });
     }
     if (value && typeof value === "object") {
       var result = {};
