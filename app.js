@@ -2,7 +2,11 @@
   "use strict";
 
   var CFG = window.CRYSTAL_CONFIG || {};
-  var keys = { customers: "crystal_customers", bookings: "crystal_bookings", events: "crystal_events", inspiration: "crystal_inspiration", captions: "crystal_captions", products: "crystal_products", story: "crystal_story", accounts: "crystal_accounts", access: "crystal_admin_preview" };
+  var keys = { customers: "crystal_customers", bookings: "crystal_bookings", events: "crystal_events", inspiration: "crystal_inspiration", captions: "crystal_captions", products: "crystal_products", story: "crystal_story", accounts: "crystal_accounts" };
+  var publishedContent = {};
+  var publishedContentLoaded = false;
+  var publishedContentError = "";
+  var githubToken = "";
   var works = [
     { id: "afterglow", name: "Afterglow", category: "Evening", image: "assets/img-2.jpg", tagline: "A little midnight magic.", recipient: "the woman who owns the room.", description: "An emerald lace silhouette with thoughtful details for the moments that deserve a little extra sparkle.", relatedAccessories: ["aso-oke-clutch", "cowrie-necklace", "beaded-headwrap"] },
     { id: "aster", name: "Aster", category: "Celebration", image: "assets/img-1iu.jpg", images: ["assets/img-1iu.jpg", "assets/img-1.jpg"], tagline: "The joy is in the details.", recipient: "her next beautiful beginning.", description: "A playful, sculpted look made for dancing, celebrating, and feeling completely yourself.", relatedAccessories: ["ankara-scrunchies", "beaded-headwrap", "cowrie-necklace"] },
@@ -81,27 +85,15 @@
       chapterThreeAlt: "A softly detailed occasionwear look from the atelier"
     }
   };
-  var catalog = read(keys.products, null);
-  if (catalog && Array.isArray(catalog.works) && Array.isArray(catalog.accessories)) {
-    works = catalog.works;
-    accessories = catalog.accessories;
-  }
   var accessoryPlaceholderImages = ["assets/img-1.jpg", "assets/img-1iu.jpg", "assets/img-2.jpg", "assets/img-3.jpg"];
-  accessories.forEach(function (item, index) {
-    var images = itemImages(item).filter(function (image, imageIndex, allImages) {
-      return allImages.indexOf(image) === imageIndex;
-    });
-    for (var offset = 0; images.length < 3 && offset < accessoryPlaceholderImages.length; offset += 1) {
-      var placeholder = accessoryPlaceholderImages[(index + offset) % accessoryPlaceholderImages.length];
-      if (images.indexOf(placeholder) === -1) images.push(placeholder);
-    }
-    item.images = images;
-    if (images.length) item.image = images[0];
-  });
   var $ = function (selector, root) { return (root || document).querySelector(selector); };
   var $$ = function (selector, root) { return Array.prototype.slice.call((root || document).querySelectorAll(selector)); };
 
   function read(key, fallback) {
+    if (publishedContentLoaded) {
+      var contentKey = key === keys.products ? "products" : key === keys.story ? "story" : key === keys.captions ? "captions" : "";
+      if (contentKey && Object.prototype.hasOwnProperty.call(publishedContent, contentKey)) return publishedContent[contentKey];
+    }
     try {
       var value = localStorage.getItem(key);
       return value ? JSON.parse(value) : fallback;
@@ -116,6 +108,232 @@
     } catch (error) {
       return false;
     }
+  }
+  function contentApiUrl(path) {
+    var github = CFG.github || {};
+    var encodedPath = path.split("/").map(encodeURIComponent).join("/");
+    return "https://api.github.com/repos/" + encodeURIComponent(github.owner || "") + "/" + encodeURIComponent(github.repository || "") + "/contents/" + encodedPath;
+  }
+  function loadPublishedContent() {
+    var file = (CFG.github && CFG.github.contentFile) || "site-content.json";
+    return fetch(file, { cache: "no-store" }).then(function (response) {
+      if (!response.ok) throw new Error("Could not load shared site content (" + response.status + ").");
+      return response.json();
+    }).then(function (content) {
+      if (!content || typeof content !== "object" || Array.isArray(content)) throw new Error("The shared site content file is not valid JSON data.");
+      publishedContent = content;
+      publishedContentLoaded = true;
+    });
+  }
+  function githubApiRequest(method, path, body) {
+    var headers = {
+      Accept: "application/vnd.github+json",
+      Authorization: "Bearer " + githubToken,
+      "X-GitHub-Api-Version": "2022-11-28"
+    };
+    var options = { method: method, headers: headers };
+    if (body) {
+      headers["Content-Type"] = "application/json";
+      options.body = JSON.stringify(body);
+    }
+    return fetch(path, options).then(function (response) {
+      return response.text().then(function (text) {
+        var result = {};
+        if (text) {
+          try { result = JSON.parse(text); }
+          catch (error) { result = { message: text }; }
+        }
+        if (!response.ok) {
+          var failure = new Error(result.message || "GitHub rejected the request (" + response.status + ").");
+          failure.status = response.status;
+          throw failure;
+        }
+        return result;
+      });
+    });
+  }
+  function getGitHubFile(path) {
+    var branch = (CFG.github && CFG.github.branch) || "main";
+    return githubApiRequest("GET", contentApiUrl(path) + "?ref=" + encodeURIComponent(branch));
+  }
+  function utf8Base64(value) {
+    var bytes = new TextEncoder().encode(value);
+    var binary = "";
+    bytes.forEach(function (byte) { binary += String.fromCharCode(byte); });
+    return window.btoa(binary);
+  }
+  function parseGitHubContentFile(file) {
+    if (!file || !file.content) throw new Error("GitHub did not return the shared content file.");
+    var binary = window.atob(file.content.replace(/\s/g, ""));
+    var bytes = new Uint8Array(binary.length);
+    for (var index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    var content = JSON.parse(new TextDecoder().decode(bytes));
+    if (!content || typeof content !== "object" || Array.isArray(content)) throw new Error("The shared content file is not valid JSON data.");
+    return content;
+  }
+  function normalizeAccessoryImages() {
+    accessories.forEach(function (item, index) {
+      var images = itemImages(item).filter(function (image, imageIndex, allImages) {
+        return allImages.indexOf(image) === imageIndex;
+      });
+      for (var offset = 0; images.length < 3 && offset < accessoryPlaceholderImages.length; offset += 1) {
+        var placeholder = accessoryPlaceholderImages[(index + offset) % accessoryPlaceholderImages.length];
+        if (images.indexOf(placeholder) === -1) images.push(placeholder);
+      }
+      item.images = images;
+      if (images.length) item.image = images[0];
+    });
+  }
+  function installPublishedContent(content) {
+    publishedContent = content;
+    publishedContentLoaded = true;
+    var catalog = read(keys.products, null);
+    if (catalog && Array.isArray(catalog.works) && Array.isArray(catalog.accessories)) {
+      works = catalog.works;
+      accessories = catalog.accessories;
+    }
+    normalizeAccessoryImages();
+  }
+  function saveGitHubFile(path, content, message) {
+    var branch = (CFG.github && CFG.github.branch) || "main";
+    function put(sha) {
+      var body = {
+        message: message,
+        content: utf8Base64(content),
+        branch: branch
+      };
+      if (sha) body.sha = sha;
+      return githubApiRequest("PUT", contentApiUrl(path), body);
+    }
+    return getGitHubFile(path).then(function (file) {
+      return put(file.sha);
+    }, function (error) {
+      if (error.status !== 404) throw error;
+      return put("");
+    });
+  }
+  function publishImage(source) {
+    var imageData = /^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/.exec(source);
+    if (!imageData) return Promise.resolve(source);
+    var github = CFG.github || {};
+    var path = "assets/admin-upload-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8) + ".jpg";
+    var branch = github.branch || "main";
+    return githubApiRequest("PUT", contentApiUrl(path), {
+      message: "Add image uploaded from studio admin",
+      content: imageData[1],
+      branch: branch
+    }).then(function () { return path; });
+  }
+  function publishImages(value, uploaded) {
+    if (typeof value === "string" && value.indexOf("data:image/jpeg;base64,") === 0) {
+      if (!uploaded[value]) {
+        uploaded[value] = publishImage(value);
+      }
+      return uploaded[value];
+    }
+    if (Array.isArray(value)) {
+      return Promise.all(value.map(function (entry) { return publishImages(entry, uploaded); }));
+    }
+    if (value && typeof value === "object") {
+      var result = {};
+      return Object.keys(value).reduce(function (chain, key) {
+        return chain.then(function () {
+          return publishImages(value[key], uploaded).then(function (published) { result[key] = published; });
+        });
+      }, Promise.resolve()).then(function () { return result; });
+    }
+    return Promise.resolve(value);
+  }
+  function publishSiteContent(changes) {
+    if (!githubToken) return Promise.reject(new Error("Connect GitHub before saving changes to the live site."));
+    var content = {
+      products: { works: works, accessories: accessories },
+      story: getStoryContent(),
+      captions: read(keys.captions, {})
+    };
+    Object.keys(changes).forEach(function (key) { content[key] = changes[key]; });
+    var file = (CFG.github && CFG.github.contentFile) || "site-content.json";
+    return publishImages(content, {}).then(function (published) {
+      return saveGitHubFile(file, JSON.stringify(published, null, 2) + "\n", "Publish studio content changes").then(function () {
+        var storedContent = published;
+        publishedContent = storedContent;
+        publishedContentLoaded = true;
+        if (storedContent.products) {
+          works = storedContent.products.works;
+          accessories = storedContent.products.accessories;
+          write(keys.products, storedContent.products);
+        }
+        if (storedContent.story) write(keys.story, storedContent.story);
+        if (storedContent.captions) write(keys.captions, storedContent.captions);
+        return storedContent;
+      });
+    });
+  }
+  function setGitHubStatus(message) {
+    var status = $("#github-publish-status");
+    if (status) status.textContent = message;
+  }
+  function setAdminAccess(connected) {
+    var root = $("#admin-root");
+    if (!root) return;
+    var activeTab = $(".admin-tab.active", root);
+    Array.prototype.slice.call(root.children).forEach(function (element) {
+      if (element.classList.contains("admin-section")) {
+        var visible = connected && activeTab && element.id === "admin-" + activeTab.dataset.tab;
+        element.hidden = !visible;
+        element.style.display = visible ? "" : "none";
+      } else if (element.classList.contains("admin-head") || element.classList.contains("admin-note")
+        || element.classList.contains("admin-tabs")) {
+        element.hidden = !connected;
+        element.style.display = connected ? "" : "none";
+      }
+    });
+  }
+  function setupGitHubPublisher(root) {
+    var github = CFG.github || {};
+    root.insertAdjacentHTML("afterbegin", '<section class="admin-panel github-publisher"><p class="eyebrow">LIVE STOREFRONT PUBLISHING</p><h2>Connect to GitHub</h2><p class="catalog-help">Enter a fine-grained token with <b>Contents: read and write</b> access to ' + escapeHtml((github.owner || "") + "/" + (github.repository || "")) + ' on <b>' + escapeHtml(github.branch || "main") + '</b> to access the dashboard and publish changes. The token stays in this tab’s memory and is cleared when you disconnect or close the page; it is never saved to the site.</p><p class="admin-note">GitHub Pages cannot provide server-side authentication. Anyone with this token can publish to the repository, so use a narrowly scoped token only on a trusted device.</p><form id="github-publisher-form" class="product-form"><label>Fine-grained GitHub token<input name="token" type="password" autocomplete="new-password" spellcheck="false" required></label><div class="product-form-actions"><button class="button" type="submit">Connect <span>↗</span></button><button class="admin-btn" id="github-disconnect" type="button" hidden>Disconnect</button><span id="github-publish-status" aria-live="polite">' + escapeHtml(publishedContentError || "Dashboard locked. Connect GitHub to continue.") + '</span></div></form></section>');
+    var form = $("#github-publisher-form", root);
+    var disconnect = $("#github-disconnect", root);
+    var connectButton = $('button[type="submit"]', form);
+    form.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var token = String(form.elements.token.value || "").trim();
+      if (!token) return;
+      githubToken = token;
+      form.elements.token.value = "";
+      connectButton.disabled = true;
+      setGitHubStatus("Checking repository access…");
+      getGitHubFile(github.contentFile || "site-content.json").then(function (file) {
+        installPublishedContent(parseGitHubContentFile(file));
+        renderCollection();
+        applyStoryContent();
+        refreshAdmin();
+        renderCatalogEditor();
+        renderCaptionEditor();
+        renderStoryEditor();
+        setAdminAccess(true);
+        disconnect.hidden = false;
+        form.elements.token.required = false;
+        connectButton.textContent = "Connected";
+        setGitHubStatus("Connected to " + (github.owner || "") + "/" + (github.repository || "") + ". Read access verified; write access is checked when publishing.");
+      }).catch(function (error) {
+        githubToken = "";
+        disconnect.hidden = true;
+        form.elements.token.required = true;
+        connectButton.disabled = false;
+        connectButton.textContent = "Connect";
+        setGitHubStatus("Could not connect: " + error.message);
+      });
+    });
+    disconnect.addEventListener("click", function () {
+      githubToken = "";
+      disconnect.hidden = true;
+      form.elements.token.required = true;
+      connectButton.disabled = false;
+      connectButton.textContent = "Connect";
+      setAdminAccess(false);
+      setGitHubStatus("Disconnected. Connect again to publish changes.");
+    });
   }
   function compressImageFile(file) {
     return new Promise(function (resolve, reject) {
@@ -850,19 +1068,16 @@
   function admin() {
     var root = $("#admin-root");
     if (!root) return;
-    var access = read(keys.access, false);
-    if (!access) {
-      root.innerHTML = '<div class="admin-login"><p class="eyebrow">STUDIO OWNER PREVIEW</p><h2>Your atelier, at a glance.</h2><p style="font-size:11px;color:var(--muted)">This local preview dashboard is for demonstration on this device only. Visitor records are stored in this browser and are not shared across devices.</p><label>Preview passcode<input id="admin-pass" type="password" autocomplete="current-password" placeholder="Enter the demo passcode"></label><p class="admin-login-message">Preview passcode: <b>crystal-preview</b></p><button class="button" id="admin-enter" type="button">Open studio dashboard <span>↗</span></button><p class="admin-login-message" id="admin-login-message" aria-live="polite"></p></div>';
-      $("#admin-enter").addEventListener("click", function () {
-        if ($("#admin-pass").value === "crystal-preview") { write(keys.access, true); admin(); }
-        else $("#admin-login-message").textContent = "That preview passcode doesn’t match.";
-      });
-      $("#admin-pass").addEventListener("keydown", function (event) { if (event.key === "Enter") $("#admin-enter").click(); });
-      return;
-    }
+  
     root.innerHTML = '<div class="admin-head"><div><p class="eyebrow">ATELIER NOTES · LOCAL PREVIEW</p><h1>Your studio, at a glance.</h1><p>Bookings and interest recorded on this browser.</p></div><div class="admin-tools"><button class="admin-btn" id="admin-export">Export bookings CSV</button><button class="admin-btn" id="admin-clear">Clear preview data</button></div></div><div class="admin-note"><b>Preview mode:</b> data is saved in this browser’s local storage and is not shared with other visitors or devices. To collect live customer data across devices, connect a secure backend before publishing.</div><nav class="admin-tabs" aria-label="Dashboard sections"><button class="admin-tab active" data-tab="overview">Overview</button><button class="admin-tab" data-tab="bookings">Fitting requests</button><button class="admin-tab" data-tab="customers">Registered customers</button><button class="admin-tab" data-tab="interest">Most viewed & saved</button><button class="admin-tab" data-tab="captions">Design captions</button><button class="admin-tab" data-tab="story">Our story</button></nav><section class="admin-section" id="admin-overview"></section><section class="admin-section" id="admin-bookings" hidden></section><section class="admin-section" id="admin-customers" hidden></section><section class="admin-section" id="admin-interest" hidden></section><section class="admin-section" id="admin-captions" hidden></section><section class="admin-section" id="admin-story" hidden></section>';
+    root.innerHTML = root.innerHTML
+      .replace("ATELIER NOTES · LOCAL PREVIEW", "STUDIO ADMIN · GITHUB PAGES")
+      .replace("Bookings and interest recorded on this browser.", "Storefront edits publish to GitHub; visitor activity is local to this browser.")
+      .replace("Preview mode:</b> data is saved in this browser’s local storage and is not shared with other visitors or devices. To collect live customer data across devices, connect a secure backend before publishing.", "Visitor activity, customer records and bookings are still saved only in this browser. Product, caption and story edits publish to the shared storefront.");
+    setupGitHubPublisher(root);
     $(".admin-tabs", root).insertAdjacentHTML("beforeend", '<button class="admin-tab" data-tab="catalog">Products</button>');
     root.insertAdjacentHTML("beforeend", '<section class="admin-section" id="admin-catalog" hidden></section>');
+    setAdminAccess(false);
     refreshAdmin();
     renderCaptionEditor();
     renderStoryEditor();
@@ -870,13 +1085,17 @@
     $$(".admin-tab", root).forEach(function (tab) {
       tab.addEventListener("click", function () {
         $$(".admin-tab", root).forEach(function (button) { button.classList.toggle("active", button === tab); });
-        $$(".admin-section", root).forEach(function (section) { section.hidden = section.id !== "admin-" + tab.dataset.tab; });
+        $$(".admin-section", root).forEach(function (section) {
+          var visible = section.id === "admin-" + tab.dataset.tab;
+          section.hidden = !visible;
+          section.style.display = visible ? "" : "none";
+        });
       });
     });
     $("#admin-export").addEventListener("click", exportBookings);
     $("#admin-clear").addEventListener("click", function () {
       if (!window.confirm("Clear all preview bookings, customer records and analytics from this browser?")) return;
-      [keys.customers, keys.bookings, keys.events, keys.inspiration, keys.accounts, keys.captions].forEach(function (key) { localStorage.removeItem(key); });
+      [keys.customers, keys.bookings, keys.events, keys.inspiration, keys.accounts].forEach(function (key) { localStorage.removeItem(key); });
       sessionStorage.removeItem("crystal_current_email");
       refreshAdmin();
     });
@@ -901,7 +1120,7 @@
     var rows = products.map(function (entry) {
       return '<tr><td>' + escapeHtml(entry.item.name) + '</td><td>' + (entry.kind === "design" ? "Custom design" : "Accessory") + '</td><td>' + escapeHtml(entry.item.category) + '</td><td><button class="admin-btn" type="button" data-product-edit="' + entry.kind + ':' + escapeHtml(entry.item.id) + '">Edit</button> <button class="admin-btn" type="button" data-product-delete="' + entry.kind + ':' + escapeHtml(entry.item.id) + '">Remove</button></td></tr>';
     }).join("");
-    host.innerHTML = '<div class="admin-panel"><p class="eyebrow">KEEP THE COLLECTION CURRENT</p><h2>Add or edit products</h2><p class="catalog-help">Product changes save in this browser preview and appear on the storefront after a refresh. Use image paths in the site assets folder or HTTPS image URLs; separate gallery pictures with commas.</p><form id="product-form" class="product-form"><input type="hidden" name="id"><div class="product-editor-grid"><label>Product type<select name="kind"><option value="design">Custom design</option><option value="accessory">Accessory</option></select></label><label>Name<input name="name" required></label><label>Category<input name="category" required placeholder="Evening, Bags, Hair…"></label><label>Main image path<input name="image" placeholder="assets/my-design.jpg"></label><label class="product-extra-images">More picture paths<input name="images" placeholder="assets/detail-1.jpg, assets/detail-2.jpg"></label><label data-product-field="design">Made for<textarea name="recipient" rows="2"></textarea></label><label data-product-field="accessory">Accessory artwork<select name="type"><option value="clutch">Clutch</option><option value="headwrap">Headwrap</option><option value="tote">Tote</option><option value="necklace">Necklace</option><option value="scrunchie">Scrunchie</option></select></label><label data-product-field="accessory">Price in ₦<input name="price" type="number" min="0" step="1"></label><label>Tagline<input name="tagline"></label><label class="product-description">Description<textarea name="description" rows="3"></textarea></label></div><div class="product-form-actions"><button class="button" type="submit">Add product <span>↗</span></button><button class="admin-btn" id="product-cancel-edit" type="button" hidden>Cancel edit</button><span class="product-save-message" aria-live="polite"></span></div></form></div><div class="admin-panel"><h2>Current products · ' + products.length + '</h2>' + (products.length ? '<div class="admin-table-wrap"><table class="admin-table product-admin-table"><thead><tr><th>Name</th><th>Type</th><th>Category</th><th>Actions</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<p class="empty-state">No products in the catalog yet.</p>') + '</div>';
+    host.innerHTML = '<div class="admin-panel"><p class="eyebrow">KEEP THE COLLECTION CURRENT</p><h2>Add or edit products</h2><p class="catalog-help">Changes publish to the shared storefront through GitHub Pages. Use image paths in the site assets folder or HTTPS image URLs; uploaded images are added to the repository.</p><form id="product-form" class="product-form"><input type="hidden" name="id"><div class="product-editor-grid"><label>Product type<select name="kind"><option value="design">Custom design</option><option value="accessory">Accessory</option></select></label><label>Name<input name="name" required></label><label>Category<input name="category" required placeholder="Evening, Bags, Hair…"></label><label>Main image path<input name="image" placeholder="assets/my-design.jpg"></label><label class="product-extra-images">More picture paths<input name="images" placeholder="assets/detail-1.jpg, assets/detail-2.jpg"></label><label data-product-field="design">Made for<textarea name="recipient" rows="2"></textarea></label><label data-product-field="accessory">Accessory artwork<select name="type"><option value="clutch">Clutch</option><option value="headwrap">Headwrap</option><option value="tote">Tote</option><option value="necklace">Necklace</option><option value="scrunchie">Scrunchie</option></select></label><label data-product-field="accessory">Price in ₦<input name="price" type="number" min="0" step="1"></label><label>Tagline<input name="tagline"></label><label class="product-description">Description<textarea name="description" rows="3"></textarea></label></div><div class="product-form-actions"><button class="button" type="submit">Publish product <span>↗</span></button><button class="admin-btn" id="product-cancel-edit" type="button" hidden>Cancel edit</button><span class="product-save-message" aria-live="polite"></span></div></form></div><div class="admin-panel"><h2>Current products · ' + products.length + '</h2>' + (products.length ? '<div class="admin-table-wrap"><table class="admin-table product-admin-table"><thead><tr><th>Name</th><th>Type</th><th>Category</th><th>Actions</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<p class="empty-state">No products in the catalog yet.</p>') + '</div>';
     var form = $("#product-form", host);
     var oldMainImageField = form.elements.image.parentNode;
     var oldGalleryField = $(".product-extra-images", form);
@@ -911,7 +1130,7 @@
     oldMainImageField.replaceWith(imageManager);
     if (oldGalleryField) oldGalleryField.remove();
     var imageList = $(".product-image-list", imageManager);
-    $(".catalog-help", host).textContent = "Edit product names, wording, prices and photos here. Accessory galleries start with placeholder atelier photos; replace them with product photos. Every product has at least three editable picture slots. Changes save in this browser preview and appear after refresh.";
+    $(".catalog-help", host).textContent = "Edit product names, wording, prices and photos here. Accessory galleries start with placeholder atelier photos; replace them with product photos. Every product has at least three editable picture slots. Save to commit changes to GitHub; GitHub Pages deploys them to the live site.";
     var message = $(".product-save-message", host);
     var submit = $('button[type="submit"]', form);
     var editKind = "";
@@ -1083,6 +1302,7 @@
     updateFields();
     form.addEventListener("submit", function (event) {
       event.preventDefault();
+      if (!githubToken) { message.textContent = "Connect GitHub above before publishing products."; return; }
       var data = new FormData(form);
       var kind = String(data.get("kind") || "design");
       var name = String(data.get("name") || "").trim();
@@ -1091,7 +1311,9 @@
         return row.dataset.imageSource || $(".product-image-path", row).value.trim();
       }).filter(Boolean);
       var id = String(data.get("id") || "");
-      var target = kind === "accessory" ? accessories : works;
+      var nextWorks = works.slice();
+      var nextAccessories = accessories.slice();
+      var target = kind === "accessory" ? nextAccessories : nextWorks;
       if (!name || !category) { message.textContent = "Add a product name and category."; return; }
       if (kind === "design" && !allImages.length) { message.textContent = "Add a cover image path for a custom design."; return; }
       if (allImages.some(function (src) {
@@ -1126,15 +1348,15 @@
       }
       if (index === -1) target.unshift(item);
       else target[index] = item;
-      if (!write(keys.products, { works: works, accessories: accessories })) {
-        if (index === -1) target.shift();
-        else target[index] = products.find(function (entry) { return entry.item.id === id; }).item;
-        message.textContent = "We couldn’t save the product in this browser. Check storage and try again.";
-        return;
-      }
-      record(index === -1 ? "product_added" : "product_updated", item.name);
-      renderCatalogEditor();
-      renderCaptionEditor();
+      message.textContent = "Publishing product to GitHub…";
+      publishSiteContent({ products: { works: nextWorks, accessories: nextAccessories } }).then(function () {
+        record(index === -1 ? "product_added" : "product_updated", item.name);
+        renderCatalogEditor();
+        renderCaptionEditor();
+        setGitHubStatus("Product published to GitHub. GitHub Pages will update after deployment finishes.");
+      }).catch(function (error) {
+        message.textContent = "We couldn’t publish this product: " + error.message;
+      });
     });
     $("#product-cancel-edit", host).addEventListener("click", function () { renderCatalogEditor(); });
     $$("[data-product-edit]", host).forEach(function (button) {
@@ -1164,20 +1386,20 @@
       button.addEventListener("click", function () {
         if (!window.confirm("Remove this product from the storefront catalog?")) return;
         var parts = button.dataset.productDelete.split(":");
-        var list = parts[0] === "accessory" ? accessories : works;
-        var previous = list.slice();
-        var next = list.filter(function (item) { return item.id !== parts[1]; });
-        if (parts[0] === "accessory") accessories = next;
-        else works = next;
-        if (!write(keys.products, { works: works, accessories: accessories })) {
-          if (parts[0] === "accessory") accessories = previous;
-          else works = previous;
-          window.alert("We couldn’t remove the product in this browser. Check storage and try again.");
+        if (!githubToken) {
+          setGitHubStatus("Connect GitHub above before removing products.");
           return;
         }
-        record("product_removed", itemName(parts[1]));
-        renderCatalogEditor();
-        renderCaptionEditor();
+        var nextWorks = works.filter(function (item) { return !(parts[0] === "design" && item.id === parts[1]); });
+        var nextAccessories = accessories.filter(function (item) { return !(parts[0] === "accessory" && item.id === parts[1]); });
+        publishSiteContent({ products: { works: nextWorks, accessories: nextAccessories } }).then(function () {
+          record("product_removed", itemName(parts[1]));
+          renderCatalogEditor();
+          renderCaptionEditor();
+          setGitHubStatus("Product removed from the live catalog. GitHub Pages will update after deployment finishes.");
+        }).catch(function (error) {
+          setGitHubStatus("Could not remove product: " + error.message);
+        });
       });
     });
   }
@@ -1323,7 +1545,7 @@
     function renderImageEditor(group) {
       return '<div class="story-admin-image-editor" data-story-image-editor><div class="story-admin-image-preview"><img data-story-image-preview alt=""><span data-story-image-empty>Photo preview</span></div><div class="story-admin-image-fields"><label>Photo path or HTTPS URL<input type="text" data-story-image-input="' + group.imageKey + '" value="' + escapeHtml(content.images[group.imageKey]) + '" placeholder="assets/story-photo.jpg"></label><label>Photo description (alt text)<input type="text" data-story-alt-input="' + group.altKey + '" value="' + escapeHtml(content.alts[group.altKey]) + '"></label><div class="story-admin-image-actions"><button class="admin-btn" type="button" data-story-image-pick>Choose photo</button><input type="file" accept="image/*" data-story-file-input hidden><button class="admin-btn" type="button" data-story-image-remove>Remove photo</button></div></div></div>';
     }
-    host.innerHTML = '<div class="admin-panel"><p class="eyebrow">SHAPE THE STORY</p><h2>Edit the Our Story page</h2><p class="catalog-help">Update the page copy, chapter captions and photographs. Uploads are compressed and saved only in this browser preview; refresh Our Story to see saved changes.</p><form id="story-editor-form" class="story-admin-form">' + groups.map(function (group, index) {
+    host.innerHTML = '<div class="admin-panel"><p class="eyebrow">SHAPE THE STORY</p><h2>Edit the Our Story page</h2><p class="catalog-help">Update page copy, captions and photographs. Save to publish the changes to the live site.</p><form id="story-editor-form" class="story-admin-form">' + groups.map(function (group, index) {
       return '<details class="story-admin-group"' + (index === 0 ? " open" : "") + '><summary>' + escapeHtml(group.title) + '</summary><div class="story-admin-group-content"><div class="story-admin-fields">' + group.fields.map(renderField).join("") + '</div>' + (group.imageKey ? renderImageEditor(group) : "") + '</div></details>';
     }).join("") + '<div class="product-form-actions"><button class="button" type="submit">Save story changes <span>↗</span></button><span class="story-save-message" aria-live="polite"></span></div></form></div>';
     var form = $("#story-editor-form", host);
@@ -1386,34 +1608,47 @@
     });
     form.addEventListener("submit", function (event) {
       event.preventDefault();
+      if (!githubToken) { message.textContent = "Connect GitHub above before publishing story changes."; return; }
       var copy = {};
       var images = {};
       var alts = {};
+      var invalidImageField = null;
       $$("[data-story-copy-field]", form).forEach(function (field) { copy[field.dataset.storyCopyField] = field.value.trim(); });
       $$("[data-story-image-input]", form).forEach(function (field) {
         var source = field.value.trim();
         if (source && !validStoryImageSource(source)) {
-          message.textContent = "Use an image uploaded from your device, a site asset path, or an HTTPS image URL.";
-          field.focus();
+          invalidImageField = field;
           return;
         }
         images[field.dataset.storyImageInput] = source;
       });
-      if (Object.keys(images).length !== Object.keys(storyDefaults.images).length) return;
-      $$("[data-story-alt-input]", form).forEach(function (field) { alts[field.dataset.storyAltInput] = field.value.trim(); });
-      if (!write(keys.story, { copy: copy, images: images, alts: alts })) {
-        message.textContent = "We couldn’t save the story page in this browser. Check storage and try again.";
+      if (invalidImageField) {
+        message.textContent = "Use an image uploaded from your device, a site asset path, or an HTTPS image URL.";
+        invalidImageField.focus();
         return;
       }
-      record("story_content_updated");
-      message.textContent = "Saved. Refresh Our Story to see the changes.";
+      if (Object.keys(images).length !== Object.keys(storyDefaults.images).length) return;
+      $$("[data-story-alt-input]", form).forEach(function (field) { alts[field.dataset.storyAltInput] = field.value.trim(); });
+      message.textContent = "Publishing story changes to GitHub…";
+      publishSiteContent({ story: { copy: copy, images: images, alts: alts } }).then(function () {
+        var storedStory = read(keys.story, {});
+        $$("[data-story-image-input]", form).forEach(function (field) {
+          field.value = storedStory.images[field.dataset.storyImageInput];
+          field.dispatchEvent(new Event("input"));
+        });
+        record("story_content_updated");
+        message.textContent = "Published. The live page will update after GitHub Pages finishes deploying.";
+        setGitHubStatus("Story changes committed. GitHub Pages deployment is in progress.");
+      }).catch(function (error) {
+        message.textContent = "We couldn’t publish the story changes: " + error.message;
+      });
     });
   }
   function renderCaptionEditor() {
     var host = $("#admin-captions");
     if (!host) return;
     var captions = read(keys.captions, {});
-    host.innerHTML = '<div class="admin-panel"><p class="eyebrow">THE WORDS THAT MAKE IT HERS</p><h2>Design captions</h2><p style="font-size:11px;color:var(--muted)">Personalise the little line on each showcased look and who it was made for. Changes save in this browser preview.</p><form id="caption-form">' + works.map(function (item) {
+    host.innerHTML = '<div class="admin-panel"><p class="eyebrow">THE WORDS THAT MAKE IT HERS</p><h2>Design captions</h2><p style="font-size:11px;color:var(--muted)">Personalise each design’s tagline and who it was made for. Save to publish changes to the live site.</p><form id="caption-form">' + works.map(function (item) {
       var text = captions[item.id] || {};
       return '<div class="caption-editor"><h3>' + escapeHtml(item.name) + '</h3><label>Tagline<input data-caption="' + item.id + '" data-field="tagline" value="' + escapeHtml(text.tagline || item.tagline) + '"></label><label>Who it’s for<textarea data-caption="' + item.id + '" data-field="recipient" rows="2">' + escapeHtml(text.recipient || item.recipient) + '</textarea></label></div>';
     }).join("") + '<button class="button" type="submit">Save design captions <span>↗</span></button><span class="caption-save-message" aria-live="polite"></span></form></div>';
@@ -1426,9 +1661,15 @@
         updated[id][input.dataset.field] = input.value.trim();
       });
       var message = $(".caption-save-message", host);
-      if (!write(keys.captions, updated)) { message.textContent = "Could not save captions in this browser."; return; }
-      record("captions_updated");
-      message.textContent = "Saved. Your design stories now have their own words.";
+      if (!githubToken) { message.textContent = "Connect GitHub above before publishing captions."; return; }
+      message.textContent = "Publishing captions to GitHub…";
+      publishSiteContent({ captions: updated }).then(function () {
+        record("captions_updated");
+        message.textContent = "Published. Your design captions will update after GitHub Pages deploys.";
+        setGitHubStatus("Design captions committed. GitHub Pages deployment is in progress.");
+      }).catch(function (error) {
+        message.textContent = "Could not publish captions: " + error.message;
+      });
     });
   }
   function exportBookings() {
@@ -1448,14 +1689,31 @@
     URL.revokeObjectURL(url);
   }
 
-  applyStoryContent();
-  header();
-  footer();
-  renderCollection();
-  setupForms();
-  record("page_view", document.body.dataset.page || "");
-  if (document.body.dataset.page === "admin") admin();
-  if (document.body.dataset.page === "account") renderAccount();
-  setupSignupPopup();
-  setupStoryMotion();
+  function initializeApp() {
+    var catalog = read(keys.products, null);
+    if (catalog && Array.isArray(catalog.works) && Array.isArray(catalog.accessories)) {
+      works = catalog.works;
+      accessories = catalog.accessories;
+    }
+    normalizeAccessoryImages();
+    applyStoryContent();
+    header();
+    footer();
+    renderCollection();
+    setupForms();
+    record("page_view", document.body.dataset.page || "");
+    if (document.body.dataset.page === "admin") admin();
+    if (document.body.dataset.page === "account") renderAccount();
+    setupSignupPopup();
+    setupStoryMotion();
+  }
+  loadPublishedContent().then(function () {
+    initializeApp();
+  }).catch(function (error) {
+    publishedContentError = error.message;
+    publishedContent = {};
+    publishedContentLoaded = false;
+    console.error("Could not load shared site content:", error);
+    initializeApp();
+  });
 }());
