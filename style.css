@@ -317,6 +317,9 @@ h1 em,h2 em,p em{font-weight:500}
 .admin-tabs{display:flex;gap:7px;overflow:auto;border-bottom:1px solid var(--line);margin-bottom:23px}
 .admin-tab{border:0;background:transparent;padding:11px 15px;color:#807983;white-space:nowrap;font-size:10px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
 .admin-tab.active{color:var(--plum);border-bottom:2px solid var(--gold)}
+.catalog-kind-tabs{display:flex;gap:8px;margin-bottom:18px;border-bottom:1px solid var(--line)}
+.catalog-kind-tab{border:0;border-bottom:2px solid transparent;background:transparent;padding:11px 15px;color:#807983;font-size:10px;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+.catalog-kind-tab.active{border-bottom-color:var(--gold);color:var(--plum)}
 .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:25px}
 .stat-card{padding:17px 18px;background:var(--white);border:1px solid #eee8ee}
 .stat-card span{display:block;color:#8b838d;font-size:9px;letter-spacing:.1em;text-transform:uppercase}

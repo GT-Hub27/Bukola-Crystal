@@ -1185,17 +1185,30 @@
     if (!rows.length) return '<p class="empty-state">' + empty + '</p>';
     return '<ol class="rank-list">' + rows.map(function (row) { return "<li><span>" + escapeHtml(row[0]) + "</span><b>" + row[1] + "</b></li>"; }).join("") + "</ol>";
   }
-  function renderCatalogEditor() {
+  function renderCatalogEditor(selectedKind) {
     var host = $("#admin-catalog");
     if (!host) return;
+    var activeKind = selectedKind === "accessory" ? "accessory" : "design";
+    var sectionName = activeKind === "accessory" ? "accessories" : "collection";
     var minImageSlots = 3;
-    var products = works.map(function (item) { return { item: item, kind: "design" }; })
-      .concat(accessories.map(function (item) { return { item: item, kind: "accessory" }; }));
+    var products = (activeKind === "accessory" ? accessories : works).map(function (item) {
+      return { item: item, kind: activeKind };
+    });
     var rows = products.map(function (entry) {
       return '<tr><td>' + escapeHtml(entry.item.name) + '</td><td>' + (entry.kind === "design" ? "Custom design" : "Accessory") + '</td><td>' + escapeHtml(entry.item.category) + '</td><td><button class="admin-btn" type="button" data-product-edit="' + entry.kind + ':' + escapeHtml(entry.item.id) + '">Edit</button> <button class="admin-btn" type="button" data-product-delete="' + entry.kind + ':' + escapeHtml(entry.item.id) + '">Remove</button></td></tr>';
     }).join("");
     host.innerHTML = '<div class="admin-panel"><p class="eyebrow">KEEP THE COLLECTION CURRENT</p><h2>Add or edit products</h2><p class="catalog-help">Changes publish to the shared storefront through GitHub Pages. Use image paths in the site assets folder or HTTPS image URLs; uploaded images are added to the repository.</p><form id="product-form" class="product-form"><input type="hidden" name="id"><div class="product-editor-grid"><label>Product type<select name="kind"><option value="design">Custom design</option><option value="accessory">Accessory</option></select></label><label>Name<input name="name" required></label><label>Category<input name="category" required placeholder="Evening, Bags, Hair…"></label><label>Main image path<input name="image" placeholder="assets/my-design.jpg"></label><label class="product-extra-images">More picture paths<input name="images" placeholder="assets/detail-1.jpg, assets/detail-2.jpg"></label><label data-product-field="design">Made for<textarea name="recipient" rows="2"></textarea></label><label data-product-field="accessory">Accessory artwork<select name="type"><option value="clutch">Clutch</option><option value="headwrap">Headwrap</option><option value="tote">Tote</option><option value="necklace">Necklace</option><option value="scrunchie">Scrunchie</option></select></label><label data-product-field="accessory">Price in ₦<input name="price" type="number" min="0" step="1"></label><label>Tagline<input name="tagline"></label><label class="product-description">Description<textarea name="description" rows="3"></textarea></label></div><div class="product-form-actions"><button class="button" type="submit">Publish product <span>↗</span></button><button class="admin-btn" id="product-cancel-edit" type="button" hidden>Cancel edit</button><span class="product-save-message" aria-live="polite"></span></div></form></div><div class="admin-panel"><h2>Current products · ' + products.length + '</h2>' + (products.length ? '<div class="admin-table-wrap"><table class="admin-table product-admin-table"><thead><tr><th>Name</th><th>Type</th><th>Category</th><th>Actions</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '<p class="empty-state">No products in the catalog yet.</p>') + '</div>';
+    var panels = $$(".admin-panel", host);
+    $("h2", panels[0]).textContent = "Add or edit " + sectionName;
+    $("h2", panels[1]).textContent = (activeKind === "accessory" ? "Current accessories" : "Current collection products") + " · " + products.length;
+    var typeTabs = document.createElement("nav");
+    typeTabs.className = "catalog-kind-tabs";
+    typeTabs.setAttribute("aria-label", "Product type");
+    typeTabs.innerHTML = '<button class="catalog-kind-tab' + (activeKind === "design" ? " active" : "") + '" type="button" data-catalog-kind="design" aria-pressed="' + (activeKind === "design") + '">Collection</button><button class="catalog-kind-tab' + (activeKind === "accessory" ? " active" : "") + '" type="button" data-catalog-kind="accessory" aria-pressed="' + (activeKind === "accessory") + '">Accessories</button>';
+    host.insertBefore(typeTabs, host.firstChild);
     var form = $("#product-form", host);
+    form.elements.kind.value = activeKind;
+    form.elements.kind.parentNode.hidden = true;
     var oldMainImageField = form.elements.image.parentNode;
     var oldGalleryField = $(".product-extra-images", form);
     var imageManager = document.createElement("div");
@@ -1393,7 +1406,7 @@
     $(".product-add-image", imageManager).addEventListener("click", function () { addImageRow(""); });
     setImageRows([]);
     var updateFields = function () {
-      if (editKind) form.elements.kind.value = editKind;
+      form.elements.kind.value = editKind || activeKind;
       var isAccessory = form.elements.kind.value === "accessory";
       $$("[data-product-field]", form).forEach(function (field) {
         field.hidden = field.dataset.productField !== (isAccessory ? "accessory" : "design");
@@ -1401,6 +1414,22 @@
     };
     form.elements.kind.addEventListener("change", updateFields);
     updateFields();
+    function hasUnsavedProductChanges() {
+      if (form.elements.id.value || isNewInput.checked) return true;
+      var names = ["name", "category", "recipient", "price", "salePrice", "sizes", "quantity", "tagline", "description"];
+      if (names.some(function (name) { return String(form.elements[name].value || "").trim() !== ""; })) return true;
+      return $$(".product-image-row", imageList).some(function (row) {
+        return (row.dataset.imageSource || $(".product-image-path", row).value.trim()) !== "";
+      });
+    }
+    $$(".catalog-kind-tab", typeTabs).forEach(function (button) {
+      button.addEventListener("click", function () {
+        var nextKind = button.dataset.catalogKind;
+        if (nextKind === activeKind) return;
+        if (hasUnsavedProductChanges() && !window.confirm("Switching sections will discard this unsaved product. Continue?")) return;
+        renderCatalogEditor(nextKind);
+      });
+    });
     form.addEventListener("submit", function (event) {
       event.preventDefault();
       if (!githubToken) { message.textContent = "Connect GitHub above before publishing products."; return; }
@@ -1470,14 +1499,14 @@
       message.textContent = "Publishing product to GitHub…";
       publishSiteContent({ products: { works: nextWorks, accessories: nextAccessories } }).then(function () {
         record(index === -1 ? "product_added" : "product_updated", item.name);
-        renderCatalogEditor();
+        renderCatalogEditor(activeKind);
         renderCaptionEditor();
         setGitHubStatus("Product published to GitHub. GitHub Pages will update after deployment finishes.");
       }).catch(function (error) {
         message.textContent = "We couldn’t publish this product: " + error.message;
       });
     });
-    $("#product-cancel-edit", host).addEventListener("click", function () { renderCatalogEditor(); });
+    $("#product-cancel-edit", host).addEventListener("click", function () { renderCatalogEditor(activeKind); });
     $$("[data-product-edit]", host).forEach(function (button) {
       button.addEventListener("click", function () {
         var parts = button.dataset.productEdit.split(":");
@@ -1517,7 +1546,7 @@
         var nextAccessories = accessories.filter(function (item) { return !(parts[0] === "accessory" && item.id === parts[1]); });
         publishSiteContent({ products: { works: nextWorks, accessories: nextAccessories } }).then(function () {
           record("product_removed", itemName(parts[1]));
-          renderCatalogEditor();
+          renderCatalogEditor(activeKind);
           renderCaptionEditor();
           setGitHubStatus("Product removed from the live catalog. GitHub Pages will update after deployment finishes.");
         }).catch(function (error) {
