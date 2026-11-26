@@ -487,7 +487,8 @@ h1 em,h2 em,p em{font-weight:500}
 @media(prefers-reduced-motion:reduce){.story-title-line>span,.story-reveal{opacity:1;transform:none}}
 @media(max-width:760px){
   .modal-related{padding:18px 15px}
-  .related-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .related-grid{display:flex;gap:13px;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;overscroll-behavior-inline:contain;padding-bottom:8px}
+  .related-grid .work-card{flex:0 0 78%;scroll-snap-align:start}
   .story-reveal-left,.story-reveal-right{transform:translateY(24px)}
   .account-page{padding-top:38px;padding-bottom:55px}
   .account-auth{grid-template-columns:1fr;gap:20px}
