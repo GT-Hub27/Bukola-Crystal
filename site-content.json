@@ -44,14 +44,19 @@
         "id": "solenne",
         "name": "Solenne",
         "category": "Occasion",
-        "image": "assets/img-1.jpg",
+        "image": "assets/admin-upload-mwxun5a6-mpaptk.jpg",
         "images": [
-          "assets/img-1.jpg",
-          "assets/img-1iu.jpg"
+          "assets/admin-upload-mwxun5a6-mpaptk.jpg",
+          "assets/admin-upload-mwxun71l-cq7xfb.jpg"
         ],
         "tagline": "Colour with a point of view.",
-        "recipient": "the woman who brings the colour.",
         "description": "A bold print and a beautifully considered shape, designed to turn an entrance into a moment.",
+        "price": null,
+        "salePrice": null,
+        "sizes": [],
+        "quantity": null,
+        "isNew": false,
+        "recipient": "the woman who brings the colour.",
         "relatedAccessories": [
           "adire-tote",
           "ankara-scrunchies",
